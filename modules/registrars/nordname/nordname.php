@@ -1,7 +1,7 @@
 <?php
 /**
  * NordName Domains Registrar Module
- * @copyright Copyright (c) C-Soft Ltd 2017
+ * @copyright Copyright (c) C-Soft Ltd 2018
  */
 
 if (!defined("WHMCS")) {
