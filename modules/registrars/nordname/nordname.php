@@ -455,6 +455,9 @@ function nordname_TransferDomain($params) {
     
     if (!empty($params["additionalfields"]["es_nie"]))
       $body["extraData"]["es_nie"] = $params["additionalfields"]["es_nie"];
+  
+    if (!empty($params["additionalfields"]["hr_oib"]))
+      $body["extraData"]["hr_oib"] = $params["additionalfields"]["hr_oib"];
 
     try {
         $api = new ApiClient();
@@ -815,6 +818,9 @@ function nordname_SaveContactDetails($params) {
     
     if (!empty($params["additionalfields"]["es_nie"]))
       $body["extraData"]["es_nie"] = $params["additionalfields"]["es_nie"];
+  
+    if (!empty($params["additionalfields"]["hr_oib"]))
+      $body["extraData"]["hr_oib"] = $params["additionalfields"]["hr_oib"];
 
     try {
         $api = new ApiClient();
