@@ -98,7 +98,7 @@ function nordname_RegisterDomain($params) {
     $auto_renew = ($params['auto_renew'] == "on") ? 'true' : 'false';
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
     $years = $params['regperiod'];
 
@@ -143,7 +143,7 @@ function nordname_RegisterDomain($params) {
         'lastname' => $lastName,
         'address1' => $address1,
         'city' => $city,
-        'state' => $params["fullstate"],
+        'state' => $stateFullName,
         'zip' => $postcode,
         'country' => $countryCode,
         'email' => $email,
@@ -302,7 +302,7 @@ function nordname_TransferDomain($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
     $years = $params['regperiod'];
     $epp = $params['eppcode'];
@@ -337,7 +337,7 @@ function nordname_TransferDomain($params) {
         'lastname' => $lastName,
         'address1' => $address1,
         'city' => $city,
-        'state' => $params["fullstate"],
+        'state' => $stateFullName,
         'zip' => $postcode,
         'country' => $countryCode,
         'email' => $email,
@@ -496,7 +496,7 @@ function nordname_RenewDomain($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = $params['idnSecondLevel'];
     $tld = $params['tld'];
     $years = $params['regperiod'];
 
@@ -538,9 +538,8 @@ function nordname_GetNameservers($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
-
     // Build post data
     $getfields = array(
         'api_key' => $apiKey
@@ -584,7 +583,7 @@ function nordname_SaveNameservers($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
   
     // submitted nameserver values
@@ -629,7 +628,7 @@ function nordname_GetContactDetails($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
 
     // Build post data
@@ -684,7 +683,7 @@ function nordname_SaveContactDetails($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
 
     // whois information
@@ -882,7 +881,6 @@ function nordname_CheckAvailability($params) {
     try {
         $api = new ApiClient();
         $reply = $api->call("GET", "checkRegistrationAvailability", $getfields, "", $sandbox);
-        //var_dump($reply);
         $results = new ResultsList();
         
         foreach ($reply as $domain => $result) {
@@ -932,7 +930,7 @@ function nordname_GetRegistrarLock($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
 
     // Build post data
@@ -972,7 +970,7 @@ function nordname_SaveRegistrarLock($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
   
     // lock status
@@ -1014,7 +1012,7 @@ function nordname_IDProtectToggle($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
   
     // privacy status
@@ -1060,7 +1058,7 @@ function nordname_GetEPPCode($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
 
     // Build post data
@@ -1102,14 +1100,13 @@ function nordname_Sync($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params['sld']);
     $tld = $params['tld'];
 
     // Build post data
     $getfields = array(
         'api_key' => $apiKey
     );
-    var_dump($params);
 
     try {
         $api = new ApiClient();
@@ -1156,10 +1153,10 @@ function nordname_Sync($params) {
 function nordname_TransferSync($params) {
     // user defined configuration values
     $apiKey = $params['api_key'];
-    $sandbox = ($params['sandbox'] == "on") ? 'true' : 'false';
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // domain parameters
-    $sld = $params['sld'];
+    $sld = idn_to_ascii($params['sld']);
     $tld = $params['tld'];
 
     // Build post data

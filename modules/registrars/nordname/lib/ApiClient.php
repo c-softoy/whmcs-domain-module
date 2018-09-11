@@ -24,6 +24,7 @@ class ApiClient
     public function call($method, $action, $getfields, $body = null, $sandbox = false, $op = false)
     {
         $url = '';
+        $sandbox = boolval($sandbox);
         if (!$sandbox) {
             if ($op)
                 $url = 'https://c-soft.net/api/v1.1/operation/';
