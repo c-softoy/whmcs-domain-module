@@ -158,34 +158,8 @@ function nordname_RegisterDomain($params) {
     if (!empty($address2))
       $body["address2"] = $address2;
   
-    if (!empty($params["additionalfields"]["registrant_type"])) {
-      switch ($params["additionalfields"]["registrant_type"]) {
-        case "Private Person":
-          $body["extraData"]["registrant_type"] = 0;
-          break;
-        case "Company":
-          $body["extraData"]["registrant_type"] = 1;
-          break;
-        case "Corporation":
-          $body["extraData"]["registrant_type"] = 2;
-          break;
-        case "Institution":
-          $body["extraData"]["registrant_type"] = 3;
-          break;
-        case "Political Party":
-          $body["extraData"]["registrant_type"] = 4;
-          break;
-        case "Township":
-          $body["extraData"]["registrant_type"] = 5;
-          break;
-        case "Government":
-          $body["extraData"]["registrant_type"] = 6;
-          break;
-        case "Public Community":
-          $body["extraData"]["registrant_type"] = 7;
-          break;
-      }
-    }
+    if (!empty($params["additionalfields"]["registrant_type"]))
+        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
   
     if (!empty($params["additionalfields"]["birthdate"]))
       $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
@@ -199,60 +173,15 @@ function nordname_RegisterDomain($params) {
     if (!empty($params["additionalfields"]["vatNumber"]))
       $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
       
-    if (!empty($params["additionalfields"]["es_tipo"])) {
-      switch ($params["additionalfields"]["es_tipo"]) {
-        case "Foreign":
-          $body["extraData"]["es_tipo"] = 0;
-          break;
-        case "Spanish Citizen or Company":
-          $body["extraData"]["es_tipo"] = 1;
-          break;
-        case "Foreigner living in Spain":
-          $body["extraData"]["es_tipo"] = 3;
-          break;
-      }
-    }
+    if (!empty($params["additionalfields"]["es_tipo"]))
+        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
   
-    if (!empty($params["additionalfields"]["us_nc"])) {
-      switch ($params["additionalfields"]["us_nc"]) {
-        case "US Citizen":
-          $body["extraData"]["us_nc"] = "C11";
-          break;
-        case "US Permanent Resident":
-          $body["extraData"]["us_nc"] = "C12";
-          break;
-        case "Incorporated or organized in US":
-          $body["extraData"]["us_nc"] = "C21";
-          break;
-        case "Foreign entity doing business in US":
-          $body["extraData"]["us_nc"] = "C31";
-          break;
-        case "Foreign entity with office in US":
-          $body["extraData"]["us_nc"] = "C32";
-          break;
-      }
-    }
-  
-    if (!empty($params["additionalfields"]["us_ap"])) {
-      switch ($params["additionalfields"]["us_ap"]) {
-        case "Business for Profit":
-          $body["extraData"]["us_ap"] = "P1";
-          break;
-        case "Non-Profit":
-          $body["extraData"]["us_ap"] = "P2";
-          break;
-        case "Personal":
-          $body["extraData"]["us_ap"] = "P3";
-          break;
-        case "Educational":
-          $body["extraData"]["us_ap"] = "P4";
-          break;
-        case "Governmental":
-          $body["extraData"]["us_ap"] = "P5";
-          break;
-      }
-    }
-    
+    if (!empty($params["additionalfields"]["us_nc"]))
+        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
+
+    if (!empty($params["additionalfields"]["us_ap"]))
+        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
+
     if (!empty($params["additionalfields"]["es_other"]))
       $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
       
@@ -351,35 +280,9 @@ function nordname_TransferDomain($params) {
   
     if (!empty($address2))
       $body["address2"] = $address2;
-  
-    if (!empty($params["additionalfields"]["registrant_type"])) {
-      switch ($params["additionalfields"]["registrant_type"]) {
-        case "Private Person":
-          $body["extraData"]["registrant_type"] = 0;
-          break;
-        case "Company":
-          $body["extraData"]["registrant_type"] = 1;
-          break;
-        case "Corporation":
-          $body["extraData"]["registrant_type"] = 2;
-          break;
-        case "Institution":
-          $body["extraData"]["registrant_type"] = 3;
-          break;
-        case "Political Party":
-          $body["extraData"]["registrant_type"] = 4;
-          break;
-        case "Township":
-          $body["extraData"]["registrant_type"] = 5;
-          break;
-        case "Government":
-          $body["extraData"]["registrant_type"] = 6;
-          break;
-        case "Public Community":
-          $body["extraData"]["registrant_type"] = 7;
-          break;
-      }
-    }
+
+    if (!empty($params["additionalfields"]["registrant_type"]))
+        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
   
     if (!empty($params["additionalfields"]["birthdate"]))
       $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
@@ -392,60 +295,15 @@ function nordname_TransferDomain($params) {
       
     if (!empty($params["additionalfields"]["vatNumber"]))
       $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
-      
-    if (!empty($params["additionalfields"]["es_tipo"])) {
-      switch ($params["additionalfields"]["es_tipo"]) {
-        case "Foreign":
-          $body["extraData"]["es_tipo"] = 0;
-          break;
-        case "Spanish Citizen or Company":
-          $body["extraData"]["es_tipo"] = 1;
-          break;
-        case "Foreigner living in Spain":
-          $body["extraData"]["es_tipo"] = 3;
-          break;
-      }
-    }
-  
-    if (!empty($params["additionalfields"]["us_nc"])) {
-      switch ($params["additionalfields"]["us_nc"]) {
-        case "US Citizen":
-          $body["extraData"]["us_nc"] = "C11";
-          break;
-        case "US Permanent Resident":
-          $body["extraData"]["us_nc"] = "C12";
-          break;
-        case "Incorporated or organized in US":
-          $body["extraData"]["us_nc"] = "C21";
-          break;
-        case "Foreign entity doing business in US":
-          $body["extraData"]["us_nc"] = "C31";
-          break;
-        case "Foreign entity with office in US":
-          $body["extraData"]["us_nc"] = "C32";
-          break;
-      }
-    }
-  
-    if (!empty($params["additionalfields"]["us_ap"])) {
-      switch ($params["additionalfields"]["us_ap"]) {
-        case "Business for Profit":
-          $body["extraData"]["us_ap"] = "P1";
-          break;
-        case "Non-Profit":
-          $body["extraData"]["us_ap"] = "P2";
-          break;
-        case "Personal":
-          $body["extraData"]["us_ap"] = "P3";
-          break;
-        case "Educational":
-          $body["extraData"]["us_ap"] = "P4";
-          break;
-        case "Governmental":
-          $body["extraData"]["us_ap"] = "P5";
-          break;
-      }
-    }
+
+    if (!empty($params["additionalfields"]["es_tipo"]))
+        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
+
+    if (!empty($params["additionalfields"]["us_nc"]))
+        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
+
+    if (!empty($params["additionalfields"]["us_ap"]))
+        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
     
     if (!empty($params["additionalfields"]["es_other"]))
       $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
@@ -713,35 +571,9 @@ function nordname_SaveContactDetails($params) {
   
     if (!empty($contactDetails['Registrant']['Address 2']))
       $body["address2"] = $contactDetails['Registrant']['Address 2'];
-  
-    if (!empty($params["additionalfields"]["registrant_type"])) {
-      switch ($params["additionalfields"]["registrant_type"]) {
-        case "Private Person":
-          $body["extraData"]["registrant_type"] = 0;
-          break;
-        case "Company":
-          $body["extraData"]["registrant_type"] = 1;
-          break;
-        case "Corporation":
-          $body["extraData"]["registrant_type"] = 2;
-          break;
-        case "Institution":
-          $body["extraData"]["registrant_type"] = 3;
-          break;
-        case "Political Party":
-          $body["extraData"]["registrant_type"] = 4;
-          break;
-        case "Township":
-          $body["extraData"]["registrant_type"] = 5;
-          break;
-        case "Government":
-          $body["extraData"]["registrant_type"] = 6;
-          break;
-        case "Public Community":
-          $body["extraData"]["registrant_type"] = 7;
-          break;
-      }
-    }
+
+    if (!empty($params["additionalfields"]["registrant_type"]))
+        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
   
     if (!empty($params["additionalfields"]["birthdate"]))
       $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
@@ -754,60 +586,15 @@ function nordname_SaveContactDetails($params) {
       
     if (!empty($params["additionalfields"]["vatNumber"]))
       $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
-      
-    if (!empty($params["additionalfields"]["es_tipo"])) {
-      switch ($params["additionalfields"]["es_tipo"]) {
-        case "Foreign":
-          $body["extraData"]["es_tipo"] = 0;
-          break;
-        case "Spanish Citizen or Company":
-          $body["extraData"]["es_tipo"] = 1;
-          break;
-        case "Foreigner living in Spain":
-          $body["extraData"]["es_tipo"] = 3;
-          break;
-      }
-    }
-  
-    if (!empty($params["additionalfields"]["us_nc"])) {
-      switch ($params["additionalfields"]["us_nc"]) {
-        case "US Citizen":
-          $body["extraData"]["us_nc"] = "C11";
-          break;
-        case "US Permanent Resident":
-          $body["extraData"]["us_nc"] = "C12";
-          break;
-        case "Incorporated or organized in US":
-          $body["extraData"]["us_nc"] = "C21";
-          break;
-        case "Foreign entity doing business in US":
-          $body["extraData"]["us_nc"] = "C31";
-          break;
-        case "Foreign entity with office in US":
-          $body["extraData"]["us_nc"] = "C32";
-          break;
-      }
-    }
-  
-    if (!empty($params["additionalfields"]["us_ap"])) {
-      switch ($params["additionalfields"]["us_ap"]) {
-        case "Business for Profit":
-          $body["extraData"]["us_ap"] = "P1";
-          break;
-        case "Non-Profit":
-          $body["extraData"]["us_ap"] = "P2";
-          break;
-        case "Personal":
-          $body["extraData"]["us_ap"] = "P3";
-          break;
-        case "Educational":
-          $body["extraData"]["us_ap"] = "P4";
-          break;
-        case "Governmental":
-          $body["extraData"]["us_ap"] = "P5";
-          break;
-      }
-    }
+
+    if (!empty($params["additionalfields"]["es_tipo"]))
+        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
+
+    if (!empty($params["additionalfields"]["us_nc"]))
+        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
+
+    if (!empty($params["additionalfields"]["us_ap"]))
+        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
     
     if (!empty($params["additionalfields"]["es_other"]))
       $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
