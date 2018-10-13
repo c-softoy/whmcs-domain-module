@@ -354,7 +354,7 @@ function nordname_RenewDomain($params) {
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
     // registration parameters
-    $sld = $params['idnSecondLevel'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
     $years = $params['regperiod'];
 
