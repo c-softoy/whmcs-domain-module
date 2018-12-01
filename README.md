@@ -1,6 +1,8 @@
 # whmcs-domain-module
 WHMCS Registrar Module for the NordName Domain API v1.1
 
+Required PHP extension: php-intl
+
 # Installation
 
 1. Copy the files and folders within the repository to a folder modules/registrars/nordname within your WHMCS installation.
