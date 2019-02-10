@@ -115,7 +115,7 @@ function nordname_RegisterDomain($params) {
     $firstName = $params["firstname"];
     $lastName = $params["lastname"];
     $fullName = $params["fullname"]; // First name and last name combined
-    $companyName = $params["companyname"];
+    $company = $params["companyname"];
     $email = $params["email"];
     $address1 = $params["address1"];
     $address2 = $params["address2"];
@@ -240,7 +240,7 @@ function nordname_TransferDomain($params) {
     $firstName = $params["firstname"];
     $lastName = $params["lastname"];
     $fullName = $params["fullname"]; // First name and last name combined
-    $companyName = $params["companyname"];
+    $company = $params["companyname"];
     $email = $params["email"];
     $address1 = $params["address1"];
     $address2 = $params["address2"];
