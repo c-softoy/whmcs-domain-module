@@ -407,7 +407,6 @@ function nordname_GetNameservers($params) {
         $api = new ApiClient();
         $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox);
         return array(
-            'success' => true,
             'ns1' => $reply["nameservers"][0],
             'ns2' => $reply["nameservers"][1],
             'ns3' => $reply["nameservers"][2],
