@@ -158,7 +158,7 @@ function nordname_RegisterDomain($params) {
     if (!empty($address2))
       $body["address2"] = $address2;
   
-    if (!empty($params["additionalfields"]["registrant_type"]) && $params["additionalfields"]["registrant_type"] !== '0')
+    if (!empty($params["additionalfields"]["registrant_type"]) || $params["additionalfields"]["registrant_type"] == '0')
         $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
   
     if (!empty($params["additionalfields"]["birthdate"]))
@@ -281,7 +281,7 @@ function nordname_TransferDomain($params) {
     if (!empty($address2))
       $body["address2"] = $address2;
 
-    if (!empty($params["additionalfields"]["registrant_type"]) && $params["additionalfields"]["registrant_type"] !== '0')
+    if (!empty($params["additionalfields"]["registrant_type"]) || $params["additionalfields"]["registrant_type"] == '0')
         $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
   
     if (!empty($params["additionalfields"]["birthdate"]))
