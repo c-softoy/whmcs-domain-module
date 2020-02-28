@@ -219,3 +219,14 @@ $additionaldomainfields['.hr'][] = [
     'Size' => '20',
     'Required' => false
 ];
+
+
+// .LT
+$additionaldomainfields['.lt'][] = $registrant_type;
+$additionaldomainfields['.lt'][] = [
+    'Name' => 'registerNumber',
+    'DisplayName' => 'Register Number <sup style="cursor:help;" title="Only for companies/organizations: Organization Registration Number">what\'s this?</sup>',
+    'Type' => 'text',
+    'Size' => '20',
+    'Required' => false
+];
