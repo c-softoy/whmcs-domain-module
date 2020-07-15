@@ -985,3 +985,54 @@ function nordname_TransferSync($params) {
         );
     }
 }
+
+function nordname_GetTldPricing(array $params) {
+    // Perform API call to retrieve extension information
+    // A connection error should return a simple array with error key and message
+    // return ['error' => 'This error occurred',];
+    
+    // user defined configuration values
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+
+    // Build post data
+    $getfields = array(
+        'api_key' => $apiKey
+    );
+
+    try {
+        $api = new ApiClient();
+        // First get the list of TLDs supported by NordName.
+        $reply = $api->call("GET", "domain/tld", $getfields,"", $sandbox);
+        // Reply should contain an array of TLDs.
+        
+        $results = new ResultsList;
+        
+        foreach ($reply as $tld) {
+            // Get each TLD info.
+            $tld = $api->call("GET", "domain/tld/" . $tld, $getfields,"", $sandbox);
+            
+            // Form an ImportItem from the TLD information.
+            
+            $item = (new ImportItem)
+                ->setExtension($tld['tld'])
+                ->setYears($tld["technical"]["registrationYears"])
+                ->setRegisterPrice($tld["prices"]["registration"]["price"])
+                ->setRenewPrice($tld["prices"]["renewal"]["price"])
+                ->setTransferPrice($tld["prices"]["transfer"]["price"])
+                ->setGraceFeeDays($tld["technical"]["gracePeriod"])
+                ->setGraceFeePrice($tld["prices"]["renewal"]["price"])
+                ->setRedemptionFeeDays($tld["technical"]["redemptionPeriod"])
+                ->setRedemptionFeePrice($tld["prices"]["redemption"]["price"])
+                ->setCurrency("EUR")
+                ->setEppRequired($tld["features"]["useEppCodes"]);
+            $results[] = $item;
+        }
+        return $results;
+
+    } catch (\Exception $e) {
+        return array(
+            'error' => $e->getMessage(),
+        );
+    }
+}
