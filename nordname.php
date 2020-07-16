@@ -12,6 +12,9 @@ require_once __DIR__ . '/lib/ApiClient.php';
 
 use WHMCS\Domains\DomainLookup\ResultsList;
 use WHMCS\Domains\DomainLookup\SearchResult;
+use WHMCS\Domain\TopLevel\ImportItem;
+use WHMCS\Carbon;
+use WHMCS\Domain\Registrar\Domain;
 use WHMCS\Module\Registrar\NordName\ApiClient as ApiClient;
 
 /**
