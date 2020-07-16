@@ -1003,14 +1003,14 @@ function nordname_GetTldPricing(array $params) {
     try {
         $api = new ApiClient();
         // First get the list of TLDs supported by NordName.
-        $reply = $api->call("GET", "domain/tld", $getfields,"", $sandbox);
+        $reply = $api->call("GET", "tld", $getfields,"", $sandbox);
         // Reply should contain an array of TLDs.
         
         $results = new ResultsList;
         
         foreach ($reply as $tld) {
             // Get each TLD info.
-            $tld = $api->call("GET", "domain/tld/" . $tld, $getfields,"", $sandbox);
+            $tld = $api->call("GET", "tld/" . $tld, $getfields,"", $sandbox);
             
             // Form an ImportItem from the TLD information.
             
