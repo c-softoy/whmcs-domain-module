@@ -651,6 +651,12 @@ function nordname_SaveContactDetails($params) {
     // Add extra fields if required by TLD and if present.
     $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
     foreach ($tld_fields as $fields) {
+        // First check if condition fields are present and add them.
+        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
+            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
+        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
+            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
+
         $split = explode(",", $fields["required_fields"]);
         foreach ($split as $field) {
             if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field]))
