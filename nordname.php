@@ -1099,7 +1099,6 @@ function nordname_ImmediateTransferCheck($params) {
 }
 
 function nordname_get_module_settings() {
-    return getRegistrarConfigOptions("nordname");
     $reg = new WHMCS\Module\Registrar;
     $reg->load('nordname');
     return $reg->getSettings();
