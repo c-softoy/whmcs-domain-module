@@ -21,20 +21,14 @@ class ApiClient
      *
      * @return array
      */
-    public function call($method, $action, $getfields, $body = null, $sandbox = false, $op = false)
+    public function call($method, $action, $getfields, $body = null, $sandbox = false)
     {
         $url = '';
         $sandbox = boolval($sandbox);
         if (!$sandbox) {
-            if ($op)
-                $url = 'https://c-soft.net/api/v1.1/operation/';
-            else
-                $url = 'https://c-soft.net/api/v1.1/domain/';
+            $url = 'https://api.c-soft.net/api/v1.2/';
         } else {
-            if ($op)
-                $url = 'https://c-soft.net/sandbox_api/v1.1/operation/';
-            else
-                $url = 'https://c-soft.net/sandbox_api/v1.1/domain/';
+            $url = 'https://sandbox-api.c-soft.net/api/v1.2/';
         }
       
         $ch = curl_init();
@@ -43,6 +37,7 @@ class ApiClient
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
         curl_setopt($ch, CURLOPT_TIMEOUT, 360);
+        $headers = array('X-Module-Version: 1.2');
         switch ($method) {
             case "GET":
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
@@ -53,20 +48,16 @@ class ApiClient
             case "POST":
                 if (!empty($body)) {
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                    'Content-Type: application/json',
-                    'Content-Length: ' . strlen(json_encode($body)))
-                    );  
+                    $headers[] = 'Content-Type: application/json';
+                    $headers[] = 'Content-Length: ' . strlen(json_encode($body));  
                 }
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");   
                 break;
             case "PUT":
                 if (!empty($body)) {
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-                    'Content-Type: application/json',
-                    'Content-Length: ' . strlen(json_encode($body)))
-                    );  
+                    $headers[] = 'Content-Type: application/json';
+                    $headers[] = 'Content-Length: ' . strlen(json_encode($body));
                 }
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");
                 break;
@@ -75,6 +66,7 @@ class ApiClient
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
                 break;
         }
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         $response = curl_exec($ch);
         if (curl_errno($ch)) {
             throw new \Exception('Connection Error: ' . curl_errno($ch) . ' - ' . curl_error($ch));
@@ -100,7 +92,7 @@ class ApiClient
         }
       
         if ($httpcode != 200 && $httpcode != 201 && $httpcode != 202) {
-          throw new \Exception('API ERROR: ' . $this->results["desc"]);
+          throw new \Exception('Registrar API Error: ' . $this->results["detail"]);
         }
 
         return $this->results;

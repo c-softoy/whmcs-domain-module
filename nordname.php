@@ -1,7 +1,7 @@
 <?php
 /**
- * NordName Domains Registrar Module
- * @copyright Copyright (c) C-Soft Ltd 2018
+ * NordName Domain Name Registrar Module
+ * @copyright Copyright (c) C-Soft Ltd 2020
  */
 
 if (!defined("WHMCS")) {
@@ -9,10 +9,15 @@ if (!defined("WHMCS")) {
 }
 
 require_once __DIR__ . '/lib/ApiClient.php';
+require_once __DIR__ . '/resources/domains/additionalfields.php';
 
 use WHMCS\Domains\DomainLookup\ResultsList;
 use WHMCS\Domains\DomainLookup\SearchResult;
+use WHMCS\Domain\TopLevel\ImportItem;
+use WHMCS\Carbon;
+use WHMCS\Domain\Registrar\Domain;
 use WHMCS\Module\Registrar\NordName\ApiClient as ApiClient;
+use WHMCS\Database\Capsule;
 
 /**
  * Define module related metadata
@@ -25,7 +30,7 @@ use WHMCS\Module\Registrar\NordName\ApiClient as ApiClient;
 function nordname_MetaData() {
     return array(
         'DisplayName' => 'NordName',
-        'APIVersion' => '1.1',
+        'APIVersion' => '1.2',
     );
 }
 
@@ -62,6 +67,13 @@ function nordname_getConfigArray() {
             'Default' => '',
             'Description' => 'Enter your secret API key here.',
         ),
+        'auxiliary_contact' => array(
+            'Type' => 'text',
+            'FriendlyName' => 'Admin/tech/billing contact',
+            'Size' => '128',
+            'Default' => '',
+            'Description' => 'Enter the contact which is to be used as the admin/tech/billing contact on new orders.',
+        ),
         'auto_renew' => array(
             'Type' => 'yesno',
             'FriendlyName' => 'Auto Renew',
@@ -72,7 +84,22 @@ function nordname_getConfigArray() {
             'Type' => 'yesno',
             'FriendlyName' => 'Sandbox Mode',
             'Description' => 'Tick to enable',
-        )
+        ),
+        'display_restrictions' => array(
+            'Type' => 'yesno',
+            'FriendlyName' => 'Display restriction information',
+            'Description' => 'Experimental: Should any applicable TLD restrictions be shown to the customer on order page?',
+        ),
+        'price_sync_one_year' => array(
+            'Type' => 'yesno',
+            'FriendlyName' => 'Price sync: First year only',
+            'Description' => 'Should the price sync tool set prices only for 1 year orders? It is useful if you do not want to provide longer periods'
+        ),
+        'price_sync_use_discounts' => array(
+            'Type' => 'yesno',
+            'FriendlyName' => 'Price sync: Use discounted prices?',
+            'Description' => 'Should the price sync tool take into account discount campaigns when setting TLD prices? Note that if you enable this, the tool does not automatically update the prices when campaigns end.'
+        ),
     );
 }
 
@@ -128,75 +155,70 @@ function nordname_RegisterDomain($params) {
     $phoneNumber = $params["phonenumber"]; // Phone number as the user provided it
     $phoneCountryCode = $params["phonecc"]; // Country code determined based on country
     $phoneNumberFormatted = $params["fullphonenumber"]; // Format: +CC.xxxxxxxxxxxx
-
-
-    // Build post data
-    $getfields = array(
-        'api_key' => $apiKey,
-        'years' => $years,
-        'auto_renew' => $auto_renew,
-        'nameservers' => implode(",", array_filter($nameservers))
-    );
     
     $body = array(
-        'firstname' => $firstName,
-        'lastname' => $lastName,
+        'first_name' => $firstName,
+        'last_name' => $lastName,
         'address1' => $address1,
         'city' => $city,
         'state' => $stateFullName,
-        'zip' => $postcode,
+        'zip_code' => $postcode,
         'country' => $countryCode,
         'email' => $email,
         'phone' => $phoneNumberFormatted,
-        'extraData' => Array()
+        "is_registrant" => true,
+        "language" => "en"
     );
-  
-    // Optional params
+    
+    // Add optional fields if they are present.
     if (!empty($company))
       $body["company"] = $company;
   
     if (!empty($address2))
       $body["address2"] = $address2;
-  
-    if (!empty($params["additionalfields"]["registrant_type"]) || $params["additionalfields"]["registrant_type"] == '0')
-        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
-  
-    if (!empty($params["additionalfields"]["birthdate"]))
-      $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
-  
-    if (!empty($params["additionalfields"]["idNumber"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["idNumber"];
       
-    if (!empty($params["additionalfields"]["registerNumber"]))
-      $body["extraData"]["registerNumber"] = $params["additionalfields"]["registerNumber"];
-      
-    if (!empty($params["additionalfields"]["vatNumber"]))
-      $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
-      
-    if (!empty($params["additionalfields"]["es_tipo"]))
-        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
-  
-    if (!empty($params["additionalfields"]["us_nc"]))
-        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
-
-    if (!empty($params["additionalfields"]["us_ap"]))
-        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
-
-    if (!empty($params["additionalfields"]["es_other"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
-      
-    if (!empty($params["additionalfields"]["es_nif"]))
-      $body["extraData"]["es_nif"] = $params["additionalfields"]["es_nif"];
+    // Add extra fields if required by TLD and if present.
+    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    foreach ($tld_fields as $fields) {
+        // First check if condition fields are present and add them.
+        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
+            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
+        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
+            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
+            
+        // Then same to conditional fields.
+        $split = explode(",", $fields["required_fields"]);
+        foreach ($split as $field) {
+            if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field]))
+                $body[$field] = $params["additionalfields"][$field];
+        }
+    }
     
-    if (!empty($params["additionalfields"]["es_nie"]))
-      $body["extraData"]["es_nie"] = $params["additionalfields"]["es_nie"];
-  
-    if (!empty($params["additionalfields"]["hr_oib"]))
-      $body["extraData"]["hr_oib"] = $params["additionalfields"]["hr_oib"];
-
     try {
         $api = new ApiClient();
-        $reply = $api->call("POST", "register/" . $sld . '.' . $tld, $getfields,$body, $sandbox);
+        // Create the contact.
+        $reply = $api->call("POST", "contact", array('api_key' => $apiKey), $body, $sandbox);
+        $registrant = $reply["contact"];
+    
+        // Build post data
+        $getfields = array(
+            'api_key' => $apiKey,
+            'years' => $years,
+            'auto_renew' => $auto_renew,
+            'nameservers' => implode(",", array_filter($nameservers)),
+            'registrant' => $registrant,
+            'admin' => $params["auxiliary_contact"],
+            'tech' => $params["auxiliary_contact"],
+            'billing' => $params["auxiliary_contact"]
+        );
+        
+        try {
+            $reply = $api->call("POST", "domain/register/" . $sld . '.' . $tld, $getfields, "", $sandbox);
+        } catch (\Exception $e) {
+            // If registration failed, remove the registrant contact in order to keep contact list clean.
+            $api->call("DELETE", "contact/" . $registrant, array('api_key' => $apiKey), "", $sandbox);
+            throw $e;
+        }
 
         return array(
             'success' => true,
@@ -233,7 +255,6 @@ function nordname_TransferDomain($params) {
     // registration parameters
     $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
-    $years = $params['regperiod'];
     $epp = $params['eppcode'];
 
     // registrant information
@@ -253,73 +274,69 @@ function nordname_TransferDomain($params) {
     $phoneNumber = $params["phonenumber"]; // Phone number as the user provided it
     $phoneCountryCode = $params["phonecc"]; // Country code determined based on country
     $phoneNumberFormatted = $params["fullphonenumber"]; // Format: +CC.xxxxxxxxxxxx
-    // domain addon purchase status
-    // Build post data
-    $getfields = array(
-        'api_key' => $apiKey,
-        'authcode' => $epp,
-        'auto_renew' => $auto_renew
-    );
     
     $body = array(
-        'firstname' => $firstName,
-        'lastname' => $lastName,
+        'first_name' => $firstName,
+        'last_name' => $lastName,
         'address1' => $address1,
         'city' => $city,
         'state' => $stateFullName,
-        'zip' => $postcode,
+        'zip_code' => $postcode,
         'country' => $countryCode,
         'email' => $email,
         'phone' => $phoneNumberFormatted,
-        'extraData' => Array()
+        "is_registrant" => true,
+        "language" => "en"
     );
-  
-    // Optional params
+    
+    // Add optional fields if they are present.
     if (!empty($company))
       $body["company"] = $company;
   
     if (!empty($address2))
       $body["address2"] = $address2;
-
-    if (!empty($params["additionalfields"]["registrant_type"]) || $params["additionalfields"]["registrant_type"] == '0')
-        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
-  
-    if (!empty($params["additionalfields"]["birthdate"]))
-      $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
-  
-    if (!empty($params["additionalfields"]["idNumber"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["idNumber"];
       
-    if (!empty($params["additionalfields"]["registerNumber"]))
-      $body["extraData"]["registerNumber"] = $params["additionalfields"]["registerNumber"];
-      
-    if (!empty($params["additionalfields"]["vatNumber"]))
-      $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
-
-    if (!empty($params["additionalfields"]["es_tipo"]))
-        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
-
-    if (!empty($params["additionalfields"]["us_nc"]))
-        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
-
-    if (!empty($params["additionalfields"]["us_ap"]))
-        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
-    
-    if (!empty($params["additionalfields"]["es_other"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
-      
-    if (!empty($params["additionalfields"]["es_nif"]))
-      $body["extraData"]["es_nif"] = $params["additionalfields"]["es_nif"];
-    
-    if (!empty($params["additionalfields"]["es_nie"]))
-      $body["extraData"]["es_nie"] = $params["additionalfields"]["es_nie"];
-  
-    if (!empty($params["additionalfields"]["hr_oib"]))
-      $body["extraData"]["hr_oib"] = $params["additionalfields"]["hr_oib"];
+    // Add extra fields if required by TLD and if present.
+    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    foreach ($tld_fields as $fields) {
+        // First check if condition fields are present and add them.
+        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
+            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
+        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
+            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
+            
+        $split = explode(",", $fields["required_fields"]);
+        foreach ($split as $field) {
+            if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field]))
+                $body[$field] = $params["additionalfields"][$field];
+        }
+    }
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("POST", "transfer/" . $sld . '.' . $tld, $getfields,$body, $sandbox);
+        // Create the contact.
+        $reply = $api->call("POST", "contact", array('api_key' => $apiKey), $body, $sandbox);
+        
+        $registrant = $reply["contact"];
+        // Build post data
+        $getfields = array(
+            'api_key' => $apiKey,
+            'authcode' => $epp,
+            'auto_renew' => $auto_renew,
+            'nameservers' => implode(",", array_filter($nameservers)),
+            'registrant' => $registrant,
+            'admin' => $params["auxiliary_contact"],
+            'tech' => $params["auxiliary_contact"],
+            'billing' => $params["auxiliary_contact"]
+        );
+        
+        try {
+            $reply = $api->call("POST", "domain/transfer/" . $sld . '.' . $tld, $getfields,$body, $sandbox);
+        } catch (\Exception $e) {
+            // If transfer failed, remove the registrant contact in order to keep contact list clean.
+            $api->call("DELETE", "contact/" . $registrant, array('api_key' => $apiKey), "", $sandbox);
+            throw $e;
+        }
         
         return array(
             'success' => true,
@@ -366,7 +383,7 @@ function nordname_RenewDomain($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PATCH", $sld . '.' . $tld . "/renew", $getfields,"", $sandbox);
+        $reply = $api->call("PATCH", "domain/" . $sld . '.' . $tld . "/renew", $getfields,"", $sandbox);
 
         return array(
             'success' => true,
@@ -379,8 +396,75 @@ function nordname_RenewDomain($params) {
     }
 }
 
+function normalise_domain_status($status) {
+    switch ($status) {
+        case "Inactive":
+            return WHMCS\Domain\Registrar\Domain::STATUS_SUSPENDED;
+        case "Pending Activation":
+            return WHMCS\Domain\Registrar\Domain::STATUS_INACTIVE;
+        case "Expired (grace period)":
+        case "Expired (restore period)":
+            return WHMCS\Domain\Registrar\Domain::STATUS_EXPIRED;
+        case "Expired (pending delete)":
+            return WHMCS\Domain\Registrar\Domain::STATUS_PENDING_DELETE;
+
+    }
+    return WHMCS\Domain\Registrar\Domain::STATUS_ACTIVE;
+}
+
 /**
- * Fetch current nameservers.
+ * Fetch current domain status
+ *
+ * This function should set the current domain status, settings and nameservers.
+ *
+ * @param array $params common module parameters
+ *
+ * @see https://developers.whmcs.com/domain-registrars/module-parameters/
+ *
+ * @return array
+ */
+function nordname_GetDomainInformation($params) {
+    // user defined configuration values
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+
+    // registration parameters
+    $sld = idn_to_ascii($params["original"]["sld"]);
+    $tld = $params['tld'];
+    // Build post data
+    $getfields = array(
+        'api_key' => $apiKey
+    );
+
+    try {
+        $api = new ApiClient();
+        $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+        
+        $nameServers = array();
+        $x = 1;
+        foreach ($reply["nameservers"] as $ns) {
+            $nameServers["ns". $x] = $ns;
+            $x++;
+        }
+        
+        return (new Domain)
+            ->setDomain($params["domainname"])
+            ->setNameservers($nameServers)
+            ->setIdProtectionStatus($reply["privacy"])
+            ->setRegistrationStatus(normalise_domain_status($reply["status"]))
+            ->setTransferLock($reply["transferlock"])
+            ->setExpiryDate(Carbon::createFromFormat('Y-m-d H:i:s', $reply["expires_at"]));
+
+    } catch (\Exception $e) {
+        return array(
+            'error' => $e->getMessage(),
+        );
+    }
+}
+
+/**
+ * Fetch current nameservers. Deprecated - replaced by GetDomainInformation()
+ * for WHMCS 7.6 and later
  *
  * This function should return an array of nameservers for a given domain.
  *
@@ -405,7 +489,7 @@ function nordname_GetNameservers($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox);
+        $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         return array(
             'ns1' => $reply["nameservers"][0],
             'ns2' => $reply["nameservers"][1],
@@ -454,7 +538,7 @@ function nordname_SaveNameservers($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PUT", $sld . '.' . $tld . "/changeNameservers", $getfields,"", $sandbox);
+        $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changeNameservers", $getfields,"", $sandbox);
 
         return array(
             'success' => true,
@@ -490,25 +574,21 @@ function nordname_GetContactDetails($params) {
 
     // Build post data
     $getfields = array(
-        'api_key' => $apiKey,
+        'api_key' => $apiKey
     );
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox);
-        $registrant = $reply["contact"];
-
+        $domain = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+        $registrant = $api->call("GET", "contact/" . $domain["registrant"], $getfields,"", $sandbox);
         return array(
             'Registrant' => array(
-                'First Name' => $registrant["firstname"],
-                'Last Name' => $registrant["lastname"],
-                'Company Name' => $registrant["company"],
                 'Email Address' => $registrant["email"],
                 'Address 1' => $registrant["address1"],
                 'Address 2' => $registrant["address2"],
                 'City' => $registrant["city"],
                 'State' => $registrant["state"],
-                'Postcode' => $registrant["zip"],
+                'Postcode' => $registrant["zip_code"],
                 'Country' => $registrant["country"],
                 'Phone Number' => $registrant["phone"]
             )
@@ -545,71 +625,54 @@ function nordname_SaveContactDetails($params) {
 
     // whois information
     $contactDetails = $params['contactdetails'];
-
-    // Build post data
-    $getfields = array(
-        'api_key' => $apiKey
-    );
-  
+    
+    // registrant information
     $body = array(
-        'firstname' => $contactDetails['Registrant']['First Name'],
-        'lastname' => $contactDetails['Registrant']['Last Name'],
+        'first_name' => "N/A", // First and last name need to be provided, but the only way to change them is by doing a trade.
+        'last_name' => "N/A",
         'address1' => $contactDetails['Registrant']['Address 1'],
         'city' => $contactDetails['Registrant']['City'],
         'state' => $contactDetails['Registrant']['State'],
-        'zip' => $contactDetails['Registrant']['Postcode'],
+        'zip_code' => $contactDetails['Registrant']['Postcode'],
         'country' => $contactDetails['Registrant']['Country'],
         'email' => $contactDetails['Registrant']['Email Address'],
         'phone' => $contactDetails['Registrant']['Phone Number'],
-        'extraData' => Array()
+        'is_registrant' => true,
+        'language' => "en"
     );
-  
-    // Optional params
-    if (!empty($contactDetails['Registrant']['Company Name']))
-      $body["company"] = $contactDetails['Registrant']['Company Name'];
-  
-    if (!empty($contactDetails['Registrant']['Address 2']))
-      $body["address2"] = $contactDetails['Registrant']['Address 2'];
-
-    if (!empty($params["additionalfields"]["registrant_type"]))
-        $body["extraData"]["registrant_type"] = $params["additionalfields"]["registrant_type"];
-  
-    if (!empty($params["additionalfields"]["birthdate"]))
-      $body["extraData"]["birthdate"] = $params["additionalfields"]["birthdate"];
-  
-    if (!empty($params["additionalfields"]["idNumber"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["idNumber"];
-      
-    if (!empty($params["additionalfields"]["registerNumber"]))
-      $body["extraData"]["registerNumber"] = $params["additionalfields"]["registerNumber"];
-      
-    if (!empty($params["additionalfields"]["vatNumber"]))
-      $body["extraData"]["vatNumber"] = $params["additionalfields"]["vatNumber"];
-
-    if (!empty($params["additionalfields"]["es_tipo"]))
-        $body["extraData"]["es_tipo"] = $params["additionalfields"]["es_tipo"];
-
-    if (!empty($params["additionalfields"]["us_nc"]))
-        $body["extraData"]["us_nc"] = $params["additionalfields"]["us_nc"];
-
-    if (!empty($params["additionalfields"]["us_ap"]))
-        $body["extraData"]["us_ap"] = $params["additionalfields"]["us_ap"];
     
-    if (!empty($params["additionalfields"]["es_other"]))
-      $body["extraData"]["idNumber"] = $params["additionalfields"]["es_other"];
-      
-    if (!empty($params["additionalfields"]["es_nif"]))
-      $body["extraData"]["es_nif"] = $params["additionalfields"]["es_nif"];
-    
-    if (!empty($params["additionalfields"]["es_nie"]))
-      $body["extraData"]["es_nie"] = $params["additionalfields"]["es_nie"];
+    // Add optional fields if they are present.
+    if (!empty($contactDetails["Registrant"]["Company Name"]))
+      $body["company"] = $contactDetails["Registrant"]["Company Name"];
   
-    if (!empty($params["additionalfields"]["hr_oib"]))
-      $body["extraData"]["hr_oib"] = $params["additionalfields"]["hr_oib"];
+    if (!empty($contactDetails["Registrant"]["Address 2"]))
+      $body["address2"] = $contactDetails["Registrant"]["Address 2"];
+      
+    // Add extra fields if required by TLD and if present.
+    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    foreach ($tld_fields as $fields) {
+        // First check if condition fields are present and add them.
+        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
+            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
+        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
+            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
+
+        $split = explode(",", $fields["required_fields"]);
+        foreach ($split as $field) {
+            if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field]))
+                $body[$field] = $params["additionalfields"][$field];
+        }
+    }
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PUT", $sld . '.' . $tld . "/updateContact", $getfields,$body, $sandbox);
+        // Build post data
+        $getfields = array(
+            'api_key' => $apiKey
+        );
+        
+        $domain = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+        $reply = $api->call("POST", "contact/" . $domain["registrant"], $getfields, $body, $sandbox);
 
         return array(
             'success' => true,
@@ -666,7 +729,7 @@ function nordname_CheckAvailability($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", "checkRegistrationAvailability", $getfields, "", $sandbox);
+        $reply = $api->call("GET", "domain/checkRegistrationAvailability", $getfields, "", $sandbox);
         $results = new ResultsList();
         
         foreach ($reply as $domain => $result) {
@@ -674,12 +737,14 @@ function nordname_CheckAvailability($params) {
             $domainArr = explode(".", $domain, 2);
             $searchResult = new SearchResult($domainArr[0], $domainArr[1]);
             // Determine the appropriate status to return
-            if ($result == 'available') {
-                $status = SearchResult::STATUS_NOT_REGISTERED;
-            } elseif ($result == 'unavailable') {
+            if ($result["is_premium"]) { // NordName does support premium domains with the module yet
                 $status = SearchResult::STATUS_REGISTERED;
             } else {
-                $status = SearchResult::STATUS_TLD_NOT_SUPPORTED;
+                if ($result["avail"]) {
+                    $status = SearchResult::STATUS_NOT_REGISTERED;
+                } else {
+                    $status = SearchResult::STATUS_REGISTERED;
+                }
             }
             $searchResult->setStatus($status);
             // Append to the search results list
@@ -695,13 +760,9 @@ function nordname_CheckAvailability($params) {
     }
 }
 
-function nordname_GetDomainSuggestions($params) {
-  return new ResultsList();
-}
-
 /**
- * Get registrar lock status.
- *
+ * Get registrar lock status. Deprecated - replaced by GetDomainInformation()
+ * for WHMCS 7.6 and later
  * Also known as Domain Lock or Transfer Lock status.
  *
  * @param array $params common module parameters
@@ -726,7 +787,7 @@ function nordname_GetRegistrarLock($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox);
+        $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
 
         if ($reply["transferlock"] == "true") {
             return 'locked';
@@ -740,6 +801,7 @@ function nordname_GetRegistrarLock($params) {
         );
     }
 }
+
 
 /**
  * Set registrar lock status.
@@ -770,7 +832,7 @@ function nordname_SaveRegistrarLock($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PUT", $sld . '.' . $tld . "/changeTransferLock", $getfields,"", $sandbox);
+        $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changeTransferLock", $getfields,"", $sandbox);
 
         return array(
             'success' => 'success',
@@ -812,7 +874,7 @@ function nordname_IDProtectToggle($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PUT", $sld . '.' . $tld . "/changePrivacy", $getfields,"", $sandbox);
+        $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changePrivacy", $getfields,"", $sandbox);
 
         return array(
             'success' => 'success',
@@ -854,7 +916,7 @@ function nordname_GetEPPCode($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("PUT", $sld . '.' . $tld . "/sendEPP", $getfields,"", $sandbox);
+        $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/sendEPP", $getfields,"", $sandbox);
       
         return array(
             'success' => 'success',
@@ -896,7 +958,7 @@ function nordname_Sync($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox);
+        $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $expires = \DateTime::createFromFormat('Y-m-d H:i:s', $reply["expires_at"]);
       
         $transferredout = false;
@@ -952,33 +1014,256 @@ function nordname_TransferSync($params) {
 
     try {
         $api = new ApiClient();
-        $reply = $api->call("GET", $sld . '.' . $tld, $getfields,"", $sandbox, true);
+        $reply = $api->call("GET", "operation/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $status = $api->getFromResponse('status');
-        $description = $api->getFromResponse('description');
         $return = array();
         if ($status == "Completed") { // If transfer has completed, we'll mark it as completed and set the expiration date to be in 1 year. Sync script will update correct expiration date.
             $now = new \DateTime();
             date_add($now, date_interval_create_from_date_string('1 year'));
             $return["completed"] = true;
             $return["expirydate"] = $now->format('Y-m-d');
-        } else if ($description == "Missing Authorization Code" || 
-                  $description == "Transfer Rejected" || 
-                  $description == "Transfer Timed Out" || 
-                  $description == "Registry Transfer Request Failed" || 
-                  $description == "Registrar Rejected" ||
-                  $description == "Incorrect Authorization Code" || 
-                  $description == "Domain is Locked" || 
-                  $description == "Domain is Private" || 
-                  $description == "Registry Rejected" || 
-                  $description == "Domain Transferred Elsewhere" || 
-                  $description == "User Cancelled" || 
-                  $description == "Domain has a pendingDelete status" ||
-                  $description == "Domain has a pendingTransfer status" ||
-                  $description == "Time Out") {
+        } else if ($status == "Missing Authorization Code" || 
+                  $status == "Transfer Rejected" || 
+                  $status == "Transfer Timed Out" || 
+                  $status == "Registry Transfer Request Failed" || 
+                  $status == "Registrar Rejected" ||
+                  $status == "Incorrect Authorization Code" || 
+                  $status == "Domain is Locked" || 
+                  $status == "Domain is Private" || 
+                  $status == "Registry Rejected" || 
+                  $status == "Domain Transferred Elsewhere" || 
+                  $status == "User Cancelled" || 
+                  $status == "Domain has a pendingDelete status" ||
+                  $status == "Domain has a pendingTransfer status" ||
+                  $status == "Time Out") {
             $return["failed"] = true;
             $return["reason"] = $status;
         }
         return $return;
+    } catch (\Exception $e) {
+        return array(
+            'error' => $e->getMessage(),
+        );
+    }
+}
+
+// Certain transfers may complete immediately.
+// We shall check the status immediately after transfer request.
+function nordname_ImmediateTransferCheck($params) {
+    // user defined configuration values
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+
+    // domain parameters
+    $sld = idn_to_ascii($params['sld']);
+    $tld = $params['tld'];
+
+    // Build post data
+    $getfields = array(
+        'api_key' => $apiKey,
+    );
+
+    try {
+        $api = new ApiClient();
+        // Check if the transfer completed immediately.
+        $reply = $api->call("GET", "operation/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+        $status = $api->getFromResponse('status');
+        if ($status == "Completed") { // If transfer has completed, we'll mark it as completed and set the expiration date to be in 1 year. Sync script will update correct expiration date.
+            // Get expiration date of domain and update.
+            $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+            $date = Carbon::createFromFormat('Y-m-d H:i:s', $reply["expires_at"])->format('Y-m-d');
+            update_query('tbldomains', [
+                'nextduedate' => $date,
+                'expirydate' => $date,
+                'status' => 'Active',
+            ], ['id' => $params['domainid']]);
+            
+            sendMessage('Domain Transfer Completed', $params['domainid']);
+
+            /** @noinspection UnusedFunctionResultInspection */
+            run_hook('DomainTransferCompleted', [
+                'domainId' => $params['domainid'],
+                'domain' => $params['domainname'],
+                'registrationPeriod' => $params['regperiod'],
+                'expiryDate' => $date,
+                'registrar' => 'nordname'
+            ]);
+        }
+        
+        return array('success' => true);
+    } catch (\Exception $e) {
+        return array(
+            'error' => $e->getMessage(),
+        );
+    }
+}
+
+function nordname_get_module_settings() {
+    $reg = new WHMCS\Module\Registrar;
+    $reg->load('nordname');
+    return $reg->getSettings();
+}
+
+function nordname_get_registrar_for_tld($tld) {
+    $autoreg = Capsule::table('tbldomainpricing')
+            ->where('extension',  "." . $tld)
+            ->value('autoreg');
+    return $autoreg;
+}
+
+function nordname_get_tld_data($tld, $apiKey=null) {
+    if (empty($apiKey)) {
+        $apiKey = nordname_get_module_settings()["api_key"];
+    }
+    
+    $transient_key = "nordname_" . ucfirst($tld);
+    // Check if we have TLD data in cache.
+    $data = WHMCS\TransientData::getInstance()->retrieve($transient_key);
+    if ($data) {
+        $data = json_decode($data, true);
+    } else {
+        $sandbox = ($params['sandbox'] == "on") ? true : false;
+        $api = new ApiClient();
+        $data = $api->call("GET", "domain/tld/" . $tld, array('api_key' => $apiKey), "", $sandbox);
+        WHMCS\TransientData::getInstance()->store($transient_key, json_encode($data), 3600); // Save data in cache for 1 hour.
+    }
+    
+    return $data;
+}
+
+function nordname_AdditionalDomainFields(array $params) {
+    
+    $tld = $params["tld"];
+    
+    $fields = array();
+    try {
+        $conditions_added = array();
+        
+        // Get TLD INFO. If we have the TLD info already in cache, use that.
+        $data = nordname_get_tld_data($tld, $params["api_key"]);
+        foreach ($data["additional_contact_fields"] as $r) {
+            // Check if field_name1 or field_name2 is registrant_type. In such case, append registrant_type.
+            if (($r["field_name1"] == "registrant_type" || $r["field_name2"] == "registrant_type") && !array_key_exists("registrant_type", $conditions_added)) {
+                $conditions_added[] = "registrant_type";
+                $fields[] = nordname_additional_fields_bank("registrant_type", $tld);
+            }
+            
+            $split = explode(",", $r["required_fields"]);
+            foreach ($split as $field) {
+                $obj = nordname_additional_fields_bank($field, $tld);
+                if (!is_null($obj)) {
+                    // Update $obj with appropriate conditions, where appropriate.
+                    if ($r["field_name1"] == "registrant_type") {
+                        if ($r["operator1"] == "==") {
+                            $obj["Required"] = array(
+                                'registrant_type' => [
+                                    \Lang::trans($r["field_value1"])
+                                ]
+                            );
+                        } else if ($r["operator1"] == "!=") {
+                            $complementary = nordname_registrant_types();
+                            if (($key = array_search($r["field_value1"], $complementary)) !== false) {
+                                unset($complementary[$key]);
+                            }
+                                
+                            $obj["Required"] = array(
+                                'registrant_type' => $complementary
+                            );
+                        }
+                    } else if ($r["field_name2"] == "registrant_type") {
+                        if ($r["operator2"] == "==") {
+                            $obj["Required"] = array(
+                                'registrant_type' => [
+                                    \Lang::trans($r["field_value2"])
+                                ]
+                            );
+                        } else if ($r["operator2"] == "!=") {
+                            $complementary = $registrant_types;
+                            if (($key = array_search($r["field_value2"], $complementary)) !== false) {
+                                unset($complementary[$key]);
+                            }
+                                
+                            $obj["Required"] = array(
+                                'registrant_type' => $complementary
+                            );
+                        }
+                    }
+                    $fields[] = $obj;
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        return array(
+            'error' => $e->getMessage(),
+        );
+    }
+    return array("fields" => $fields);
+}
+
+function nordname_GetTldPricing(array $params) {
+    // Perform API call to retrieve extension information
+    // A connection error should return a simple array with error key and message
+    // return ['error' => 'This error occurred',];
+    
+    // user defined configuration values
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+
+    // Build post data
+    $getfields = array(
+        'api_key' => $apiKey
+    );
+
+    try {
+        $api = new ApiClient();
+        // First get the list of TLDs supported by NordName.
+        $reply = $api->call("GET", "domain/tld", $getfields,"", $sandbox);
+        // Reply should contain an array of TLDs.
+        
+        $results = new ResultsList;
+        
+        foreach ($reply as $tld) {
+            // Get each TLD info.
+            $tld = $api->call("GET", "domain/tld/" . $tld, $getfields,"", $sandbox);
+            
+            // If admin has set the setting to only set 1 year prices, override years array.
+            $registration_years = $tld["technical"]["registration_years"];
+            if ($params["price_sync_one_year"] == "on") {
+                $registration_years = [1];
+            }
+            
+            // Get reg, transfer and renew standard prices.
+            $reg_price = $tld["prices"]["registration"]["price"];
+            $trn_price = $tld["prices"]["transfer"]["price"];
+            $rnw_price = $tld["prices"]["renewal"]["price"];
+            
+            // Override with standard rates if they exist and feature is disabled.
+            if ($params["price_sync_use_discounts"] != "on") {
+                if (!empty($tld["prices"]["registration"]["standard_price"]))
+                    $reg_price = $tld["prices"]["registration"]["standard_price"];
+                if (!empty($tld["prices"]["transfer"]["standard_price"]))
+                    $trn_price = $tld["prices"]["transfer"]["standard_price"];
+                if (!empty($tld["prices"]["renewal"]["standard_price"]))
+                    $rnw_price = $tld["prices"]["renewal"]["standard_price"];
+            }
+            
+            // Form an ImportItem from the TLD information.
+            $item = (new ImportItem)
+                ->setExtension($tld['tld'])
+                ->setYears($registration_years)
+                ->setRegisterPrice($reg_price)
+                ->setRenewPrice($rnw_price)
+                ->setTransferPrice($trn_price)
+                ->setGraceFeeDays($tld["technical"]["grace_period"])
+                ->setGraceFeePrice($tld["prices"]["renewal"]["price"])
+                ->setRedemptionFeeDays($tld["technical"]["redemption_period"])
+                ->setRedemptionFeePrice($tld["prices"]["redemption"]["price"])
+                ->setCurrency("EUR")
+                ->setEppRequired($tld["features"]["supports_epp"]);
+            $results[] = $item;
+        }
+        return $results;
+
     } catch (\Exception $e) {
         return array(
             'error' => $e->getMessage(),
