@@ -8,14 +8,14 @@
 
 function nordname_registrant_types() {
     return [
-        \Lang::trans('Private Person'),
-        \Lang::trans('Company'),
-        \Lang::trans('Corporation'),
-        \Lang::trans('Institution'),
-        \Lang::trans('Political Party'),
-        \Lang::trans('Township'),
-        \Lang::trans('Government'),
-        \Lang::trans('Public Community')
+        'Private Person|' . \Lang::trans('Private Person'),
+        'Company|' . \Lang::trans('Company'),
+        'Corporation|' . \Lang::trans('Corporation'),
+        'Institution|' . \Lang::trans('Institution'),
+        'Political Party|' . \Lang::trans('Political Party'),
+        'Township|' . \Lang::trans('Township'),
+        'Government|' . \Lang::trans('Government'),
+        'Public Community|' . \Lang::trans('Public Community')
     ];
 }
 
