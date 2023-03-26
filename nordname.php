@@ -323,7 +323,6 @@ function nordname_TransferDomain($params) {
             'api_key' => $apiKey,
             'authcode' => $epp,
             'auto_renew' => $auto_renew,
-            'nameservers' => implode(",", array_filter($nameservers)),
             'registrant' => $registrant,
             'admin' => $params["auxiliary_contact"],
             'tech' => $params["auxiliary_contact"],
