@@ -1160,7 +1160,7 @@ function nordname_AdditionalDomainFields(array $params) {
                                 ]
                             );
                         } else if ($r["operator1"] == "!=") {
-                            $complementary = nordname_registrant_types();
+                            $complementary = array_map(function ($x) { return explode('|', $x)[0]; }, nordname_registrant_types());
                             if (($key = array_search($r["field_value1"], $complementary)) !== false) {
                                 unset($complementary[$key]);
                             }
@@ -1177,7 +1177,7 @@ function nordname_AdditionalDomainFields(array $params) {
                                 ]
                             );
                         } else if ($r["operator2"] == "!=") {
-                            $complementary = $registrant_types;
+                            $complementary = array_map(function ($x) { return explode('|', $x)[0]; }, nordname_registrant_types());
                             if (($key = array_search($r["field_value2"], $complementary)) !== false) {
                                 unset($complementary[$key]);
                             }
