@@ -1232,18 +1232,18 @@ function nordname_GetTldPricing(array $params) {
             }
             
             // Get reg, transfer and renew standard prices.
-            $reg_price = $tld["prices"]["registration"]["price"];
+            $reg_price = $tld["prices"]["registration"]["price"] * min($registration_years);
             $trn_price = $tld["prices"]["transfer"]["price"];
-            $rnw_price = $tld["prices"]["renewal"]["price"];
+            $rnw_price = $tld["prices"]["renewal"]["price"] * min($registration_years);
             
             // Override with standard rates if they exist and feature is disabled.
             if ($params["price_sync_use_discounts"] != "on") {
                 if (!empty($tld["prices"]["registration"]["standard_price"]))
-                    $reg_price = $tld["prices"]["registration"]["standard_price"];
+                    $reg_price = $tld["prices"]["registration"]["standard_price"] * min($registration_years);
                 if (!empty($tld["prices"]["transfer"]["standard_price"]))
                     $trn_price = $tld["prices"]["transfer"]["standard_price"];
                 if (!empty($tld["prices"]["renewal"]["standard_price"]))
-                    $rnw_price = $tld["prices"]["renewal"]["standard_price"];
+                    $rnw_price = $tld["prices"]["renewal"]["standard_price"] * min($registration_years);
             }
             
             // Form an ImportItem from the TLD information.
