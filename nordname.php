@@ -100,6 +100,13 @@ function nordname_getConfigArray() {
             'FriendlyName' => 'Price sync: Use discounted prices?',
             'Description' => 'Should the price sync tool take into account discount campaigns when setting TLD prices? Note that if you enable this, the tool does not automatically update the prices when campaigns end.'
         ),
+        'registrant_language' => array(
+            'FriendlyName' => "Registrant language",
+            'Type' => 'dropdown',
+            'Options' => 'en,fi',
+            'Description' => 'Select the default language for email communication with domain registrants. NordName will send any necessary email communication in this language.',
+            'Default' => 'en',
+        )
     );
 }
 
@@ -167,7 +174,7 @@ function nordname_RegisterDomain($params) {
         'email' => $email,
         'phone' => $phoneNumberFormatted,
         "is_registrant" => true,
-        "language" => "en"
+        "language" => $params['registrant_language']
     );
     
     // Add optional fields if they are present.
@@ -286,7 +293,7 @@ function nordname_TransferDomain($params) {
         'email' => $email,
         'phone' => $phoneNumberFormatted,
         "is_registrant" => true,
-        "language" => "en"
+        "language" => $params['registrant_language']
     );
     
     // Add optional fields if they are present.
@@ -637,7 +644,7 @@ function nordname_SaveContactDetails($params) {
         'email' => $contactDetails['Registrant']['Email Address'],
         'phone' => $contactDetails['Registrant']['Phone Number'],
         'is_registrant' => true,
-        'language' => "en"
+        "language" => $params['registrant_language']
     );
     
     // Add optional fields if they are present.
