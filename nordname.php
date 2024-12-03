@@ -1225,10 +1225,10 @@ function nordname_GetTldPricing(array $params) {
             // Get each TLD info.
             $tld = $api->call("GET", "domain/tld/" . $tld, $getfields,"", $sandbox);
             
-            // If admin has set the setting to only set 1 year prices, override years array.
+            // If admin has set the setting to only set 1 year prices, override years array with minimum value of years.
             $registration_years = $tld["technical"]["registration_years"];
             if ($params["price_sync_one_year"] == "on") {
-                $registration_years = [1];
+                $registration_years = min($tld["technical"]["registration_years"]);
             }
             
             // Get reg, transfer and renew standard prices.
