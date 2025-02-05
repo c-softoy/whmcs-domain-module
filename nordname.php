@@ -100,6 +100,11 @@ function nordname_getConfigArray() {
             'FriendlyName' => 'Price sync: Use discounted prices?',
             'Description' => 'Should the price sync tool take into account discount campaigns when setting TLD prices? Note that if you enable this, the tool does not automatically update the prices when campaigns end.'
         ),
+        'redact_additional_fields' => array(
+            'Type' => 'yesno',
+            'FriendlyName' => 'Privacy: Redact additional fields?',
+            'Description' => 'Often domain additional fields contain sensitive data like Social Security Numbers. Check this option to redact values of additional fields from WHMCS. This is only applied to only active domains as part of the Domain Sync cron job.'
+        ),
     );
 }
 
@@ -178,7 +183,7 @@ function nordname_RegisterDomain($params) {
       $body["address2"] = $address2;
       
     // Add extra fields if required by TLD and if present.
-    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    $tld_fields = nordname_get_tld_data($params, $tld, $apiKey)["additional_contact_fields"];
     foreach ($tld_fields as $fields) {
         // First check if condition fields are present and add them.
         if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
@@ -297,7 +302,7 @@ function nordname_TransferDomain($params) {
       $body["address2"] = $address2;
       
     // Add extra fields if required by TLD and if present.
-    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    $tld_fields = nordname_get_tld_data($params, $tld, $apiKey)["additional_contact_fields"];
     foreach ($tld_fields as $fields) {
         // First check if condition fields are present and add them.
         if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
@@ -562,6 +567,7 @@ function nordname_SaveNameservers($params) {
  *
  * @return array
  */
+
 function nordname_GetContactDetails($params) {
     // user defined configuration values
     $apiKey = $params['api_key'];
@@ -648,7 +654,7 @@ function nordname_SaveContactDetails($params) {
       $body["address2"] = $contactDetails["Registrant"]["Address 2"];
       
     // Add extra fields if required by TLD and if present.
-    $tld_fields = nordname_get_tld_data($tld, $apiKey)["additional_contact_fields"];
+    $tld_fields = nordname_get_tld_data($params, $tld, $apiKey)["additional_contact_fields"];
     foreach ($tld_fields as $fields) {
         // First check if condition fields are present and add them.
         if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
@@ -966,6 +972,10 @@ function nordname_Sync($params) {
           $active = true;
         else if ($reply["status"] == "Transferred Out")
           $transferredout = true;
+
+        if ($active || $transferredout) {
+            nordname_redact_additional_fields($params);
+        }
       
         $expired = false;
         if ($expires < new \DateTime()) // If expiration date is in the past, domain has expired.
@@ -1097,6 +1107,24 @@ function nordname_ImmediateTransferCheck($params) {
     }
 }
 
+/**
+ * Redact additional fields
+ *
+ * Sometimes we may not want to show the additional fields of a domain name registration
+ * on the client area after a domain has been registered. Due to privacy reasons.
+ *
+ * @param domainid
+ *
+ * @return null
+ */
+function nordname_redact_additional_fields($params) {
+    if ($params['redact_additional_fields'] == "on") {
+        Capsule::table('tbldomainsadditionalfields')
+                ->where('domainid', $params["domainid"])
+                ->update(['value' => "REDACTED"]);
+    }
+}
+
 function nordname_get_module_settings() {
     $reg = new WHMCS\Module\Registrar;
     $reg->load('nordname');
@@ -1110,7 +1138,7 @@ function nordname_get_registrar_for_tld($tld) {
     return $autoreg;
 }
 
-function nordname_get_tld_data($tld, $apiKey=null) {
+function nordname_get_tld_data($params, $tld, $apiKey=null) {
     if (empty($apiKey)) {
         $apiKey = nordname_get_module_settings()["api_key"];
     }
@@ -1139,7 +1167,7 @@ function nordname_AdditionalDomainFields(array $params) {
         $conditions_added = array();
         
         // Get TLD INFO. If we have the TLD info already in cache, use that.
-        $data = nordname_get_tld_data($tld, $params["api_key"]);
+        $data = nordname_get_tld_data($params, $tld, $params["api_key"]);
         foreach ($data["additional_contact_fields"] as $r) {
             // Check if field_name1 or field_name2 is registrant_type. In such case, append registrant_type.
             if (($r["field_name1"] == "registrant_type" || $r["field_name2"] == "registrant_type") && !array_key_exists("registrant_type", $conditions_added)) {
@@ -1269,3 +1297,4 @@ function nordname_GetTldPricing(array $params) {
         );
     }
 }
+
