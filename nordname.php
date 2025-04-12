@@ -18,6 +18,7 @@ use WHMCS\Carbon;
 use WHMCS\Domain\Registrar\Domain;
 use WHMCS\Module\Registrar\NordName\ApiClient as ApiClient;
 use WHMCS\Database\Capsule;
+use WHMCS\Exception\Module\InvalidConfiguration;
 
 /**
  * Define module related metadata
@@ -98,14 +99,34 @@ function nordname_getConfigArray() {
         'price_sync_use_discounts' => array(
             'Type' => 'yesno',
             'FriendlyName' => 'Price sync: Use discounted prices?',
-            'Description' => 'Should the price sync tool take into account discount campaigns when setting TLD prices? Note that if you enable this, the tool does not automatically update the prices when campaigns end.'
+            'Description' => 'Should the price sync tool take into account discount campaigns when setting TLD prices? Note that the Data Sync tool does not automatically update the prices when campaigns end.'
         ),
         'redact_additional_fields' => array(
             'Type' => 'yesno',
-            'FriendlyName' => 'Privacy: Redact additional fields?',
-            'Description' => 'Often domain additional fields contain sensitive data like Social Security Numbers. Check this option to redact values of additional fields from WHMCS. This is only applied to only active domains as part of the Domain Sync cron job.'
+            'FriendlyName' => 'Redaction: Redact additional fields?',
+            'Description' => 'Check this option to redact values of additional fields from WHMCS. It may be useful from data protection perspective to not store all additional fields in WHMCS, such as Social Security Numbers. This is only applied to only active domains as part of the Domain Sync cron job.',
         ),
+        'additional_fields_not_to_redact' => array(
+            'Type' => 'text',
+            'Size' => '128',
+            'FriendlyName' => 'Redaction: List of additional fields to NOT redact',
+            'Description' => 'Comma-separated list of additional fields to not redact. E.g. "registrant_type,vat_number". If empty, all additional fields will be redacted.',
+            'Default' => 'registrant_type',
+        )
     );
+}
+
+function nordname_config_validate($params) {
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+    $api = new ApiClient();
+  
+    // Validate contact IDs
+    try {
+        $registrant = $api->call("GET", "contact/" . $params["auxiliary_contact"], array('api_key' => $apiKey), "", $sandbox);
+    } catch (\Exception $e) {
+        throw new InvalidConfiguration('Auxiliary Admin/Tech/Billing contact is invalid.');
+    }
 }
 
 /**
@@ -1118,9 +1139,11 @@ function nordname_ImmediateTransferCheck($params) {
  * @return null
  */
 function nordname_redact_additional_fields($params) {
+    $fields_to_not_redact = explode(",", $params["additional_fields_not_to_redact"]);
     if ($params['redact_additional_fields'] == "on") {
         Capsule::table('tbldomainsadditionalfields')
                 ->where('domainid', $params["domainid"])
+                ->whereNotIn('name', $fields_to_not_redact)
                 ->update(['value' => "REDACTED"]);
     }
 }
