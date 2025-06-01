@@ -1080,6 +1080,8 @@ function nordname_TransferSync($params) {
 // Certain transfers may complete immediately.
 // We shall check the status immediately after transfer request.
 function nordname_ImmediateTransferCheck($params) {
+    global $CONFIG;
+    
     // user defined configuration values
     $apiKey = $params['api_key'];
     $sandbox = ($params['sandbox'] == "on") ? true : false;
@@ -1102,11 +1104,21 @@ function nordname_ImmediateTransferCheck($params) {
             // Get expiration date of domain and update.
             $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
             $date = Carbon::createFromFormat('Y-m-d H:i:s', $reply["expires_at"])->format('Y-m-d');
-            update_query('tbldomains', [
-                'nextduedate' => $date,
-                'expirydate' => $date,
-                'status' => 'Active',
-            ], ['id' => $params['domainid']]);
+
+            $updateqrt = array();
+            $updateqrt["expirydate"] = $date;
+            $updateqrt["status"] = "Active";
+            if ($CONFIG["DomainSyncNextDueDate"]) {
+                $newexpirydate = $updateqrt["expirydate"];
+                if ($CONFIG["DomainSyncNextDueDateDays"]) {
+                    $newexpirydate = explode("-", $newexpirydate);
+                    $newexpirydate = date("Y-m-d", mktime(0, 0, 0, $newexpirydate[1], $newexpirydate[2] - $CONFIG["DomainSyncNextDueDateDays"], $newexpirydate[0]));
+                }
+                $updateqrt["nextinvoicedate"] = $newexpirydate;
+                $updateqrt["nextduedate"] = $updateqrt["nextinvoicedate"];
+            }
+
+            update_query('tbldomains', $updateqrt, ['id' => $params['domainid']]);
             
             sendMessage('Domain Transfer Completed', $params['domainid']);
 
