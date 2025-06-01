@@ -5,10 +5,14 @@ namespace WHMCS\Module\Registrar\NordName;
 /**
  * Simple API Client for communicating with the domain API of NordName.
  */
-class ApiClient
-{
+class ApiClient {
 
+    protected string $api_key;
     protected $results = array();
+
+    public function __construct(string $api_key) {
+        $this->api_key = $api_key;
+    }
 
     /**
      * Make external API call to registrar API.
@@ -30,14 +34,37 @@ class ApiClient
         } else {
             $url = 'https://sandbox-api.c-soft.net/api/v1.2/';
         }
-      
+        $headers = array(
+            'X-Module-Version: 1.3'
+        );
+        return $this->_call($url, $method, $action, $headers, $getfields, $body, $sandbox);
+    }
+
+    public function call_v3($method, $action, $getfields, $body = null, $sandbox = false)
+    {
+        $url = '';
+        $sandbox = boolval($sandbox);
+        if (!$sandbox) {
+            $url = 'https://api.nordname.fi/api/v3/';
+        } else {
+            $url = 'https://api.ote.nordname.fi/api/v3/';
+        }
+        $headers = array(
+            'X-Module-Version: 1.3',
+            "Authorization: token " . $this->api_key
+        );
+
+        return $this->_call($url, $method, $action, $headers, $getfields, $body, $sandbox);
+    }
+
+    private function _call($url, $method, $action, $headers, $getfields, $body = null, $sandbox = false)
+    {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url . $action . "?" . http_build_query($getfields));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
         curl_setopt($ch, CURLOPT_TIMEOUT, 360);
-        $headers = array('X-Module-Version: 1.2');
         switch ($method) {
             case "GET":
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");

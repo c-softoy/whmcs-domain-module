@@ -119,7 +119,7 @@ function nordname_getConfigArray() {
 function nordname_config_validate($params) {
     $apiKey = $params['api_key'];
     $sandbox = ($params['sandbox'] == "on") ? true : false;
-    $api = new ApiClient();
+    $api = new ApiClient($apiKey);
   
     // Validate contact IDs
     try {
@@ -221,7 +221,7 @@ function nordname_RegisterDomain($params) {
     }
     
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         // Create the contact.
         $reply = $api->call("POST", "contact", array('api_key' => $apiKey), $body, $sandbox);
         $registrant = $reply["contact"];
@@ -339,7 +339,7 @@ function nordname_TransferDomain($params) {
     }
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         // Create the contact.
         $reply = $api->call("POST", "contact", array('api_key' => $apiKey), $body, $sandbox);
         
@@ -407,7 +407,7 @@ function nordname_RenewDomain($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("PATCH", "domain/" . $sld . '.' . $tld . "/renew", $getfields,"", $sandbox);
 
         return array(
@@ -421,10 +421,12 @@ function nordname_RenewDomain($params) {
     }
 }
 
-function normalise_domain_status($status) {
+function determine_domain_status($data) {
+    if ($data["epp_status"]["clientHold"]["status"])
+        return WHMCS\Domain\Registrar\Domain::STATUS_SUSPENDED;
+
+    $status = $data["status"];
     switch ($status) {
-        case "Inactive":
-            return WHMCS\Domain\Registrar\Domain::STATUS_SUSPENDED;
         case "Pending Activation":
             return WHMCS\Domain\Registrar\Domain::STATUS_INACTIVE;
         case "Expired (grace period)":
@@ -462,8 +464,8 @@ function nordname_GetDomainInformation($params) {
     );
 
     try {
-        $api = new ApiClient();
-        $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
+        $api = new ApiClient($apiKey);
+        $reply = $api->call_v3("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         
         $nameServers = array();
         $x = 1;
@@ -471,14 +473,40 @@ function nordname_GetDomainInformation($params) {
             $nameServers["ns". $x] = $ns;
             $x++;
         }
+
+        logModuleCall(
+            'NordName',
+            "get_domain",
+            $reply["expires_at"],
+            determine_domain_status($reply),
+            "",
+            array()
+        );
         
         return (new Domain)
             ->setDomain($params["domainname"])
-            ->setNameservers($nameServers)
-            ->setIdProtectionStatus($reply["privacy"])
-            ->setRegistrationStatus(normalise_domain_status($reply["status"]))
-            ->setTransferLock($reply["transferlock"])
-            ->setExpiryDate(Carbon::createFromFormat('Y-m-d H:i:s', $reply["expires_at"]));
+            ->setNameservers($reply["nameservers"])
+            ->setIdProtectionStatus($reply["settings"]["privacy"])
+            ->setRegistrationStatus(determine_domain_status($reply))
+            ->setTransferLock($reply["settings"]["transfer_lock"])
+            ->setExpiryDate(Carbon::parse($reply["expires_at"]))
+            ->setIsIrtpEnabled(true)
+            ->setIrtpOptOutStatus(false)
+            ->setIrtpTransferLock(true)
+            ->setIrtpTransferLockExpiryDate(Carbon::createFromFormat('Y-m-d', '2019-06-15'))
+            ->setDomainContactChangePending(true)
+            ->setPendingSuspension(true)
+            ->setDomainContactChangeExpiryDate(Carbon::createFromFormat('Y-m-d', '2018-08-20'))
+            ->setIrtpVerificationTriggerFields(
+                [
+                    'Registrant' => [
+                        'First Name',
+                        'Last Name',
+                        'Organization Name',
+                        'Email',
+                    ],
+                ]
+            );
 
     } catch (\Exception $e) {
         return array(
@@ -513,7 +541,7 @@ function nordname_GetNameservers($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         return array(
             'ns1' => $reply["nameservers"][0],
@@ -562,7 +590,7 @@ function nordname_SaveNameservers($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changeNameservers", $getfields,"", $sandbox);
 
         return array(
@@ -604,7 +632,7 @@ function nordname_GetContactDetails($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $domain = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $registrant = $api->call("GET", "contact/" . $domain["registrant"], $getfields,"", $sandbox);
         return array(
@@ -691,7 +719,7 @@ function nordname_SaveContactDetails($params) {
     }
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         // Build post data
         $getfields = array(
             'api_key' => $apiKey
@@ -754,7 +782,7 @@ function nordname_CheckAvailability($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("GET", "domain/checkRegistrationAvailability", $getfields, "", $sandbox);
         $results = new ResultsList();
         
@@ -812,7 +840,7 @@ function nordname_GetRegistrarLock($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
 
         if ($reply["transferlock"] == "true") {
@@ -857,7 +885,7 @@ function nordname_SaveRegistrarLock($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changeTransferLock", $getfields,"", $sandbox);
 
         return array(
@@ -899,7 +927,7 @@ function nordname_IDProtectToggle($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/changePrivacy", $getfields,"", $sandbox);
 
         return array(
@@ -941,7 +969,7 @@ function nordname_GetEPPCode($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("PUT", "domain/" . $sld . '.' . $tld . "/sendEPP", $getfields,"", $sandbox);
       
         return array(
@@ -983,7 +1011,7 @@ function nordname_Sync($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $expires = \DateTime::createFromFormat('Y-m-d H:i:s', $reply["expires_at"]);
       
@@ -1043,7 +1071,7 @@ function nordname_TransferSync($params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $reply = $api->call("GET", "operation/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $status = $api->getFromResponse('status');
         $return = array();
@@ -1080,6 +1108,8 @@ function nordname_TransferSync($params) {
 // Certain transfers may complete immediately.
 // We shall check the status immediately after transfer request.
 function nordname_ImmediateTransferCheck($params) {
+    global $CONFIG;
+
     // user defined configuration values
     $apiKey = $params['api_key'];
     $sandbox = ($params['sandbox'] == "on") ? true : false;
@@ -1092,9 +1122,17 @@ function nordname_ImmediateTransferCheck($params) {
     $getfields = array(
         'api_key' => $apiKey,
     );
+    logModuleCall(
+            'NordName',
+            "immediate_transfer_check",
+            "",
+            "",
+            "",
+            array()
+        );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         // Check if the transfer completed immediately.
         $reply = $api->call("GET", "operation/" . $sld . '.' . $tld, $getfields,"", $sandbox);
         $status = $api->getFromResponse('status');
@@ -1102,11 +1140,28 @@ function nordname_ImmediateTransferCheck($params) {
             // Get expiration date of domain and update.
             $reply = $api->call("GET", "domain/" . $sld . '.' . $tld, $getfields,"", $sandbox);
             $date = Carbon::createFromFormat('Y-m-d H:i:s', $reply["expires_at"])->format('Y-m-d');
-            update_query('tbldomains', [
-                'nextduedate' => $date,
-                'expirydate' => $date,
-                'status' => 'Active',
-            ], ['id' => $params['domainid']]);
+            logModuleCall(
+                'NordName',
+                "immediate_transfer_check",
+                "",
+                $reply,
+                $date,
+                array()
+            );
+            $updateqrt = array();
+            $updateqrt["expirydate"] = $date;
+            $updateqrt["status"] = "Active";
+            if ($CONFIG["DomainSyncNextDueDate"]) {
+                $newexpirydate = $updateqrt["expirydate"];
+                if ($CONFIG["DomainSyncNextDueDateDays"]) {
+                    $newexpirydate = explode("-", $newexpirydate);
+                    $newexpirydate = date("Y-m-d", mktime(0, 0, 0, $newexpirydate[1], $newexpirydate[2] - $CONFIG["DomainSyncNextDueDateDays"], $newexpirydate[0]));
+                }
+                $updateqrt["nextinvoicedate"] = $newexpirydate;
+                $updateqrt["nextduedate"] = $updateqrt["nextinvoicedate"];
+            }
+
+            update_query('tbldomains', $updateqrt, ['id' => $params['domainid']]);
             
             sendMessage('Domain Transfer Completed', $params['domainid']);
 
@@ -1173,7 +1228,7 @@ function nordname_get_tld_data($params, $tld, $apiKey=null) {
         $data = json_decode($data, true);
     } else {
         $sandbox = ($params['sandbox'] == "on") ? true : false;
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         $data = $api->call("GET", "domain/tld/" . $tld, array('api_key' => $apiKey), "", $sandbox);
         WHMCS\TransientData::getInstance()->store($transient_key, json_encode($data), 3600); // Save data in cache for 1 hour.
     }
@@ -1265,7 +1320,7 @@ function nordname_GetTldPricing(array $params) {
     );
 
     try {
-        $api = new ApiClient();
+        $api = new ApiClient($apiKey);
         // First get the list of TLDs supported by NordName.
         $reply = $api->call("GET", "domain/tld", $getfields,"", $sandbox);
         // Reply should contain an array of TLDs.
