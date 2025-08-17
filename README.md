@@ -17,7 +17,8 @@ Required PHP extension: php-intl
 # Installation
 
 1. Copy the files and folders within the repository to a folder modules/registrars/nordname within your WHMCS installation.
-2. Go to Setup->Products/Services->Domain Registrars menu within your WHMCS admin area. Configure your API Key to the module settings, check any optional settings (descriptions of them are below), activate the registrar module and you are done!
+2. Copy the files from the `modules/registrars/nordname/lang/overrides` folder into the `lang/overrides` folder. If the `modules/registrars/nordname/lang/overrides` folder does not exist first, create it. If you already have language override files in that location, merge the files manually.
+3. Go to Setup->Products/Services->Domain Registrars menu within your WHMCS admin area. Configure your API Key to the module settings, check any optional settings (descriptions of them are below), activate the registrar module and you are done!
 
 
 ## (optional) Install custom WHMCS API endpoints
@@ -31,6 +32,7 @@ To update the module version, do following steps:
 
 1. Extract all files from this Git repository into the `modules/registrars/nordname` folder within your WHMCS installation. Override all existing files.
 2. Go to Setup->Products/Services->Domain Registrars menu within your WHMCS admin area. Configure any new features, if you like. SAVE THE CONFIGURATION EVEN IF YOU MADE NO CHANGES. This is needed for the new Hooks to become effective.
-3. (optional) If you wish to use our custom API Endpoints `NordNameDomainCheck` and `NordNameGetTLD`, copy all files from the `modules/registrars/nordname/api` folder into `includes/api` folder.
+3. Copy the files from the `modules/registrars/nordname/lang/overrides` folder into the `lang/overrides` folder. If the `modules/registrars/nordname/lang/overrides` folder does not exist first, create it. If you already have language override files in that location, merge the files manually.
+4. (optional) If you wish to use our custom API Endpoints `NordNameDomainCheck` and `NordNameGetTLD`, copy all files from the `modules/registrars/nordname/api` folder into `includes/api` folder.
 
 
