@@ -1,6 +1,10 @@
-<?php /** @noinspection PhpInconsistentReturnPointsInspection */
+<?php
+
+use WHMCS\View\Menu\Item as MenuItem;
+
 if(!defined('WHMCS'))
     die('This file cannot be accessed directly');
+
 
 require_once __DIR__ . '/nordname.php';
 
@@ -31,7 +35,7 @@ add_hook('ClientAreaHeadOutput', 50, function($vars) {
     // Then, for these domains, check if the TLDs have country restrictions and show warning text.
     if ($settings["display_restrictions"]) {
         foreach ($domains as $obj) {
-            $tld = nordname_get_tld_data($obj["tld"], $settings["api_key"]);
+            $tld = nordname_get_tld_data($obj["tld"], $settings);
             if (!empty($tld["legal"]["registrant_countries"])) {
                 ?>
                 $("#frmConfigureDomains .sub-heading").eq(<?= $obj["key"] ?>).after("<p>If you do not fulfill this requirement, there may be a trustee service available. Contact us.</p>");
@@ -62,6 +66,75 @@ add_hook('AfterRegistrarTransfer', 50, function($vars) {
 
     /** @noinspection UnusedFunctionResultInspection */
     RegCallFunction($vars['params'], 'ImmediateTransferCheck');
+});
+
+// Disable Registrar Lock warning in Client Area if TLD does not support it.
+add_hook( 'ClientAreaPageDomainDetails', 1, function( array $vars ) {
+    $current = Menu::context( 'domain' );
+    $domain = $vars["domain"];
+    $tld = substr( $domain, strrpos( $domain, "." ) + 1 );
+
+    $tld_data = nordname_get_tld_data($tld);
+    $lock_supported = $tld_data["features"]["supports_lock"];
+
+    if (!$lock_supported) {
+        $vars['managementoptions']['locking'] = false;
+        $vars['lockstatus'] = false;
+
+        return $vars;
+    }
+});
+
+// Disable Registrar Lock item in Client Area sidebar if TLD does not support it.
+add_hook( 'ClientAreaPrimarySidebar', 1, function( MenuItem $primarySidebar ) {
+    $current = Menu::context( 'domain' );
+    $domain = $current->domain;
+    $tld = substr( $domain, strrpos( $domain, "." ) + 1 );
+
+    if ( ! is_null( $primarySidebar->getChild( 'Domain Details Management' ) ) ) {
+        $tld_data = nordname_get_tld_data($tld);
+        $lock_supported = $tld_data["features"]["supports_lock"];
+        if ( ! $lock_supported ) {
+            $primarySidebar->getChild( 'Domain Details Management' )->removeChild( 'Registrar Lock Status' );
+        }
+    }
+});
+
+add_hook('AdminAreaPage', 1, function ($vars) {
+    nordname_checkGroupOrAdd();
+    nordname_checkApiOrAdd();
+});
+
+function nordname_checkGroupOrAdd() {
+    $apiCatalogGroups = \WHMCS\Api\V1\Catalog::get()->getGroups();
+    if (!array_key_exists('NordNameRegistrar', $apiCatalogGroups))
+        \WHMCS\Api\V1\Catalog::add([], ['NordNameRegistrar' => array('name' => 'NordName Registrar')]);
+}
+
+function nordname_checkApiOrAdd() {
+    $apiCatalogActions = \WHMCS\Api\V1\Catalog::get()->getActions();
+
+    if (!array_key_exists('nordnamegettld', $apiCatalogActions)) {
+        \WHMCS\Api\V1\Catalog::add(array('nordnamegettld' => array(
+            'group' => 'NordNameRegistrar',
+            'name' => 'NordNameGetTld',
+            'default' => 0
+        )));
+    }
+
+    if (!array_key_exists('nordnamedomaincheck', $apiCatalogActions)) {
+        \WHMCS\Api\V1\Catalog::add(array('nordnamedomaincheck' => array(
+            'group' => 'NordNameRegistrar',
+            'name' => 'NordNameDomainCheck',
+            'default' => 0
+        )));
+    }
+}
+
+add_hook('AcceptOrder', 1, function($vars) {
+    $settings = nordname_get_module_settings();
+    if ($settings["override_registrar"] == "on")
+        update_query('tbldomains', array("registrar" => "nordname"), ['orderid' => $vars['orderid']]);
 });
 
 ?>

@@ -9,6 +9,14 @@ class ApiClient
 {
 
     protected $results = array();
+    protected $apiKey = '';
+    protected $sandbox = false;
+
+    public function __construct($apiKey, $sandbox = false)
+    {
+        $this->apiKey = $apiKey;
+        $this->sandbox = boolval($sandbox);
+    }
 
     /**
      * Make external API call to registrar API.
@@ -21,23 +29,30 @@ class ApiClient
      *
      * @return array
      */
-    public function call($method, $action, $getfields, $body = null, $sandbox = false)
+    public function call($method, $action, $getfields = array(), $body = null)
     {
         $url = '';
-        $sandbox = boolval($sandbox);
-        if (!$sandbox) {
-            $url = 'https://api.c-soft.net/api/v1.2/';
+        if (!$this->sandbox) {
+            $url = 'https://api.nordname.fi/api/v3/';
         } else {
-            $url = 'https://sandbox-api.c-soft.net/api/v1.2/';
+            $url = 'https://api.ote.nordname.fi/api/v3/';
         }
       
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url . $action . "?" . http_build_query($getfields));
+        $queryString = '';
+        if (!empty($getfields)) {
+            $queryString = '?' . http_build_query($getfields);
+        }
+        $targetUrl = $url . $action . $queryString;
+        curl_setopt($ch, CURLOPT_URL, $targetUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
         curl_setopt($ch, CURLOPT_TIMEOUT, 360);
-        $headers = array('X-Module-Version: 1.2');
+        $headers = array('X-Module-Version: 3.0', 'Accept: application/json');
+        if (!empty($this->apiKey)) {
+            $headers[] = 'Authorization: token ' . $this->apiKey;
+        }
         switch ($method) {
             case "GET":
                 curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");
@@ -78,12 +93,12 @@ class ApiClient
 
         logModuleCall(
             'NordName',
-            $action,
+            $targetUrl,
             $body,
             $response,
             $this->results,
             array(
-                $getfields['api_key'], // Mask username & password in request/response data
+                $this->apiKey,
             )
         );
 
