@@ -252,7 +252,7 @@ function nordname_RegisterDomain($params) {
         $getfields = array(
             'years' => $years,
             'auto_renew' => $auto_renew,
-            'nameservers' => array_values(array_filter($nameservers)),
+            'nameservers' => implode(",", array_filter($nameservers)),
             'registrant' => $registrant,
             'admin' => $params["auxiliary_contact"],
             'tech' => $params["auxiliary_contact"],
