@@ -1195,7 +1195,7 @@ function nordname_IDProtectToggle($params) {
  *
  */
 function nordname_GetEPPCode($params) {
-     // user defined configuration values
+    // user defined configuration values
     $apiKey = $params['api_key'];
     $sandbox = ($params['sandbox'] == "on") ? true : false;
 
@@ -1563,7 +1563,7 @@ function nordname_GetTldPricing(array $params) {
             // If admin has set the setting to only set 1 year prices, override years array with minimum value of years.
             $registration_years = $tld["technical"]["registration_years"];
             if ($params["price_sync_one_year"] == "on") {
-                $registration_years = min($tld["technical"]["registration_years"]);
+                $registration_years = array(min($tld["technical"]["registration_years"]));
             }
 
             // If admin has set price overrides, override price data.
