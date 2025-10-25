@@ -3,6 +3,7 @@
 if (!defined("WHMCS")) die("This file cannot be accessed directly");
 
 $_LANG['tabChangeOwner'] = "Change owner";
+$_LANG['tabDomainDNS'] = "DNS records";
 // Page Title and Headers
 $_LANG['nordname_trade_title'] = "Change Domain Owner - %s.%s";
 $_LANG['nordname_trade_new_registrant_info'] = "New Registrant Information";
@@ -91,3 +92,34 @@ $_LANG['nordname_trade_fee_required_title'] = "Domain Trade Requires Payment";
 $_LANG['nordname_trade_fee_required_message'] = "Domain trade operations for this TLD require payment of extra fee. Free domain trades are not available for this domain extension.";
 $_LANG['nordname_trade_contact_support_message'] = "To request a domain trade with payment, please contact our support team.";
 $_LANG['nordname_trade_contact_support_button'] = "Contact Support";
+
+// DNS Management
+$_LANG['nordname_dns_management_title'] = "DNS Management";
+$_LANG['nordname_dns_management_disabled_error'] = "DNS management is not active for this domain.";
+$_LANG['nordname_dns_info_title'] = "DNS Management Information";
+$_LANG['nordname_dns_info_message'] = "Manage DNS records for your domain. Changes may take up to 24-48 hours to propagate globally.";
+$_LANG['nordname_dns_info_ns'] = "Records are only in use if you are using our default name servers.";
+$_LANG['nordname_dns_info_ttl'] = "TTL (Time To Live) is in seconds. Default is 3600 (1 hour)";
+$_LANG['nordname_dns_info_hostname'] = "Use @ or leave empty for root domain records";
+$_LANG['nordname_dns_info_soa'] = "SOA and NS records are managed automatically and cannot be modified";
+$_LANG['nordname_dns_current_records'] = "Current DNS Records";
+$_LANG['nordname_dns_hostname'] = "Hostname";
+$_LANG['nordname_dns_type'] = "Type";
+$_LANG['nordname_dns_content'] = "Content";
+$_LANG['nordname_dns_priority'] = "Priority";
+$_LANG['nordname_dns_ttl'] = "TTL";
+$_LANG['nordname_dns_actions'] = "Actions";
+$_LANG['nordname_dns_delete'] = "Delete";
+$_LANG['nordname_dns_delete_confirm'] = "Are you sure you want to delete this DNS record?";
+$_LANG['nordname_dns_system_record'] = "System";
+$_LANG['nordname_dns_no_records'] = "No DNS records found. Add your first record below.";
+$_LANG['nordname_dns_add_record'] = "Add New DNS Record";
+$_LANG['nordname_dns_hostname_help'] = "Use @ for root domain or enter subdomain name (e.g., www, mail)";
+$_LANG['nordname_dns_select_type'] = "Select record type";
+$_LANG['nordname_dns_content_help'] = "Record value (IP address, hostname, text, etc.)";
+$_LANG['nordname_dns_priority_help'] = "Lower values have higher priority (required for MX and SRV records)";
+$_LANG['nordname_dns_ttl_help'] = "Time To Live - how long resolvers should cache this record";
+$_LANG['nordname_dns_add_record_button'] = "Add DNS Record";
+$_LANG['nordname_dns_back'] = "Back to Domain Details";
+$_LANG['nordname_dns_record_added'] = "DNS record added successfully";
+$_LANG['nordname_dns_record_deleted'] = "DNS record deleted successfully";

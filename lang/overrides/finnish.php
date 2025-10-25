@@ -3,6 +3,7 @@
 if (!defined("WHMCS")) die("This file cannot be accessed directly");
 
 $_LANG['tabChangeOwner'] = "Vaihda omistaja";
+$_LANG['tabDomainDNS'] = "DNS-tietueet";
 // Page Title and Headers
 $_LANG['nordname_trade_title'] = "Vaihda omistaja - %s.%s";
 $_LANG['nordname_trade_new_registrant_info'] = "Uuden omistajan tiedot";
@@ -109,3 +110,34 @@ $_LANG['VAT Number'] = "ALV-numero";
 $_LANG['Private persons: ID card or passport number'] = "Yksityishenkilöille: Suomalainen henkilötunnus (henkilötunnus)";
 $_LANG['Business customers: Company registration number'] = "Yritysasiakkaille: Y-tunnus";
 $_LANG['For private persons not resident in Finland: Birth date in format YYYY-MM-DD'] = "Vain yksityishenkilöille, joilla ei ole henkilötunnusta. Muodossa YYYY-MM-DD";
+
+// DNS Management
+$_LANG['nordname_dns_management_title'] = "DNS-hallinta";
+$_LANG['nordname_dns_management_disabled_error'] = "DNS-hallinta ei ole käytössä tälle verkkotunnukselle.";
+$_LANG['nordname_dns_info_title'] = "Tietoa DNS-hallinnasta";
+$_LANG['nordname_dns_info_message'] = "Hallitse verkkotunnuksiesi DNS-tietueita. Muutoksien voimaantulossa voi kestää 24-48 tuntia.";
+$_LANG['nordname_dns_info_ns'] = "Tietueet ovat voimassa vain jos käytät oletusnimipalvelimiamme.";
+$_LANG['nordname_dns_info_ttl'] = "TTL (Time To Live) on sekunneissa. Oletus on 3600 (1 tunti)";
+$_LANG['nordname_dns_info_hostname'] = "Käytä @ tai jätä tyhjäksi lisätäksesi tietueen verkkotunnuksen juureen.";
+$_LANG['nordname_dns_info_soa'] = "SOA- ja NS-tietueet on järjestelmän hallinnoimia, eikä niitä voi muuttaa.";
+$_LANG['nordname_dns_current_records'] = "Nykyiset DNS-tietueet";
+$_LANG['nordname_dns_hostname'] = "Nimi";
+$_LANG['nordname_dns_type'] = "Tyyppi";
+$_LANG['nordname_dns_content'] = "Sisältö";
+$_LANG['nordname_dns_priority'] = "Prioriteetti";
+$_LANG['nordname_dns_ttl'] = "TTL";
+$_LANG['nordname_dns_actions'] = "Toiminnot";
+$_LANG['nordname_dns_delete'] = "Poista";
+$_LANG['nordname_dns_delete_confirm'] = "Haluatko varmasti poistaa tämän DNS-tietueen?";
+$_LANG['nordname_dns_system_record'] = "Järjestelmä";
+$_LANG['nordname_dns_no_records'] = "DNS-tietueita ei löydetty. Lisää omasi alta.";
+$_LANG['nordname_dns_add_record'] = "Lisää uusi DNS-tietue";
+$_LANG['nordname_dns_hostname_help'] = "Syötä @ juurta varten tai aliverkkotunnus (esim. www).";
+$_LANG['nordname_dns_select_type'] = "Valitse tietueen tyyppi";
+$_LANG['nordname_dns_content_help'] = "Tietueen arvo (IP-osoite, isäntäpalvelin, teksti, jne.)";
+$_LANG['nordname_dns_priority_help'] = "Alhaisemmilla arvoilla on korkeampi prioriteetti (vaaditaan MX- ja SRV-tietueille).";
+$_LANG['nordname_dns_ttl_help'] = "Time To Live - kauanko nimipalvelimet pitävät tietueen välimuistissa.";
+$_LANG['nordname_dns_add_record_button'] = "Lisää DNS-tietue";
+$_LANG['nordname_dns_back'] = "Takaisin verkkotunnuksen tietoihin";
+$_LANG['nordname_dns_record_added'] = "DNS-tietue lisätty onnistuneesti";
+$_LANG['nordname_dns_record_deleted'] = "DNS-tietue poistettu onnistuneesti";

@@ -90,12 +90,16 @@ add_hook( 'ClientAreaPrimarySidebar', 1, function( MenuItem $primarySidebar ) {
     $current = Menu::context( 'domain' );
     $domain = $current->domain;
     $tld = substr( $domain, strrpos( $domain, "." ) + 1 );
-
     if ( ! is_null( $primarySidebar->getChild( 'Domain Details Management' ) ) ) {
         $tld_data = nordname_get_tld_data($tld);
         $lock_supported = $tld_data["features"]["supports_lock"];
-        if ( ! $lock_supported ) {
+        if ( !$lock_supported ) {
             $primarySidebar->getChild( 'Domain Details Management' )->removeChild( 'Registrar Lock Status' );
+        }
+
+        // Do not show DNS management option if service is disabled.
+        if ( !$current["dnsmanagement"] && !is_null($primarySidebar->getChild( 'Domain Details Management' )->getChild( \Lang::trans('tabDomainDNS') ))) {
+            $primarySidebar->getChild( 'Domain Details Management' )->removeChild( \Lang::trans('tabDomainDNS'));
         }
     }
 });
