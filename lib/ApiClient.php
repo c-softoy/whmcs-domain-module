@@ -2,6 +2,8 @@
 
 namespace WHMCS\Module\Registrar\NordName;
 
+class NotFoundException extends \Exception {}
+
 /**
  * Simple API Client for communicating with the domain API of NordName.
  */
@@ -104,6 +106,10 @@ class ApiClient
 
         if ($this->results === null && json_last_error() !== JSON_ERROR_NONE) {
             throw new \Exception('Bad response received from API');
+        }
+
+        if ($httpcode == 404) {
+            throw new NotFoundException('Resource not found');
         }
       
         if ($httpcode != 200 && $httpcode != 201 && $httpcode != 202) {

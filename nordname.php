@@ -17,6 +17,7 @@ use WHMCS\Domain\TopLevel\ImportItem;
 use WHMCS\Carbon;
 use WHMCS\Domain\Registrar\Domain;
 use WHMCS\Module\Registrar\NordName\ApiClient as ApiClient;
+use WHMCS\Module\Registrar\NordName\NotFoundException as NotFoundException;
 use WHMCS\Database\Capsule;
 use WHMCS\Exception\Module\InvalidConfiguration;
 
@@ -697,7 +698,167 @@ function nordname_GetContactDetails($params) {
 
 function nordname_ClientAreaCustomButtonArray() {
     return array(
+        \Lang::trans('tabDomainDNS') => "domaindns",
         \Lang::trans('tabChangeOwner') => "trade",
+    );
+}
+
+function nordname_domaindns($params) {
+    $apiKey = $params['api_key'];
+    $sandbox = ($params['sandbox'] == "on") ? true : false;
+    $domainid = $params['domainid'];
+    $sld = idn_to_ascii($params["original"]["sld"]);
+    $tld = $params['tld'];
+    $domainFqdn = $sld . '.' . $tld;
+    
+    $error = null;
+    $success = null;
+
+    if (!$params['dnsmanagement']) {
+        return array(
+            'templatefile' => 'domaindns',
+            'breadcrumb' => array(
+                'clientarea.php?action=domaindetails&domainid='.$domainid.'&modop=custom&a=domaindns' => 'DNS Management',
+            ),
+            'vars' => array(
+                'sld' => $sld,
+                'tld' => $tld,
+                'domainid' => $domainid,
+                'domain' => $domainFqdn,
+                'dnsdisabled' => true,
+            ),
+        );
+    }
+    
+    // Handle form submission for adding a new DNS record
+    if (isset($_POST['add_record'])) {
+        try {
+            $api = new ApiClient($apiKey, $sandbox);
+            
+            // Validate input
+            $recordName = trim($_POST['record_name']);
+            $recordType = trim($_POST['record_type']);
+            $recordContent = trim($_POST['record_content']);
+            $recordTtl = !empty($_POST['record_ttl']) ? intval($_POST['record_ttl']) : 3600;
+            
+            if (empty($recordType) || empty($recordContent)) {
+                throw new \Exception('Record type and content are required');
+            }
+            
+            // Convert empty hostname to @
+            if (empty($recordName)) {
+                $recordName = '@';
+            }
+            
+            // For MX and SRV records, prepend priority to content if provided
+            if ($recordType == 'MX' && !empty($_POST['record_priority'])) {
+                $recordContent = intval($_POST['record_priority']) . ' ' . $recordContent;
+            } elseif ($recordType == 'SRV' && !empty($_POST['record_priority'])) {
+                $recordContent = intval($_POST['record_priority']) . ' ' . $recordContent;
+            }
+            
+            // Ensure DNS zone exists
+            try {
+                $api->call("GET", "domain/" . $domainFqdn . "/get_dns_zone", array());
+            } catch (NotFoundException $e) {
+                $api->call("POST", "domain/" . $domainFqdn . "/init_dns_zone", array());
+            }
+            
+            // Add the DNS record
+            $recordData = array(
+                'name' => $recordName,
+                'type' => $recordType,
+                'content' => $recordContent,
+                'ttl' => $recordTtl,
+            );
+            
+            $api->call("POST", "domain/" . $domainFqdn . "/add_dns_record", $recordData);
+            $success = \Lang::trans('nordname_dns_record_added');
+            
+        } catch (\Exception $e) {
+            $error = 'Failed to add DNS record: ' . $e->getMessage();
+        }
+    }
+    
+    // Handle deletion of a DNS record
+    if (isset($_POST['delete_record']) && !empty($_POST['record_id'])) {
+        try {
+            $api = new ApiClient($apiKey, $sandbox);
+            $recordId = $_POST['record_id'];
+            
+            $api->call("DELETE", "domain/" . $domainFqdn . "/delete_dns_record", array('id' => $recordId));
+            $success = \Lang::trans('nordname_dns_record_deleted');
+            
+        } catch (\Exception $e) {
+            $error = 'Failed to delete DNS record: ' . $e->getMessage();
+        }
+    }
+    
+    // Get current DNS records
+    $dnsRecords = array();
+    try {
+        $api = new ApiClient($apiKey, $sandbox);
+        
+        // Get DNS zone records
+        try {
+            $reply = $api->call("GET", "domain/" . $domainFqdn . "/get_dns_zone", array());
+        } catch (NotFoundException $e) {
+            // Zone doesn't exist, initialize it
+            $api->call("POST", "domain/" . $domainFqdn . "/init_dns_zone", array());
+            $reply = $api->call("GET", "domain/" . $domainFqdn . "/get_dns_zone", array());
+        }
+        
+        // Convert records to template format
+        foreach ($reply as $record) {
+            // Parse priority from content for MX and SRV records
+            $priority = '';
+            $content = $record['content'];
+
+            if ($record['type'] == 'SOA') {
+                // Do not display SOA records.
+                continue;
+            } elseif ($record['type'] == 'MX') {
+                $parts = explode(' ', $record['content'], 2);
+                if (count($parts) == 2) {
+                    $priority = $parts[0];
+                    $content = $parts[1];
+                }
+            } elseif ($record['type'] == 'SRV') {
+                $parts = explode(' ', $record['content'], 4);
+                if (count($parts) == 4) {
+                    $priority = $parts[0];
+                    $content = $parts[1] . ' ' . $parts[2] . ' ' . $parts[3];
+                }
+            }
+            
+            $dnsRecords[] = array(
+                'id' => $record['id'],
+                'name' => $record['name'],
+                'type' => $record['type'],
+                'content' => $content,
+                'priority' => $priority,
+                'ttl' => $record['ttl'],
+            );
+        }
+        
+    } catch (\Exception $e) {
+        $error = 'Failed to retrieve DNS records: ' . $e->getMessage();
+    }
+    
+    return array(
+        'templatefile' => 'domaindns',
+        'breadcrumb' => array(
+            'clientarea.php?action=domaindetails&domainid='.$domainid.'&modop=custom&a=domaindns' => 'DNS Management',
+        ),
+        'vars' => array(
+            'sld' => $sld,
+            'tld' => $tld,
+            'domainid' => $domainid,
+            'domain' => $domainFqdn,
+            'dnsrecords' => $dnsRecords,
+            'error' => $error,
+            'success' => $success,
+        ),
     );
 }
 
@@ -1222,6 +1383,7 @@ function nordname_GetEPPCode($params) {
         );
     }
 }
+
 
 /**
  * Sync Domain Status & Expiration Date.
