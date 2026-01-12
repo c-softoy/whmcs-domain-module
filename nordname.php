@@ -146,6 +146,48 @@ function nordname_config_validate($params) {
 }
 
 /**
+ * Check if a domain is premium and get its price.
+ *
+ * @param string $domainFqdn The full domain name (e.g., example.com)
+ * @param string $apiKey API key
+ * @param bool $sandbox Whether sandbox mode is enabled
+ * @param string $operationType The operation type: 'register', 'transfer', or 'renew'
+ * @return array|null Returns array with 'is_premium' (bool) and 'price' (float) keys, or null on error
+ */
+function nordname_check_premium_domain($domainFqdn, $apiKey, $sandbox, $operationType = 'register') {
+    try {
+        $api = new ApiClient($apiKey, $sandbox);
+        $getfields = array(
+            'domain' => $domainFqdn,
+            'check_price' => "true"
+        );
+        $reply = $api->call("GET", "domain/availability", $getfields);
+        
+        // Find the domain in the response
+        foreach ($reply as $result) {
+            if ($result['domain'] === $domainFqdn) {
+                if ($result['is_premium']) {
+                    // Get the price for the specific operation type
+                    $priceKey = $operationType === 'transfer' ? 'transfer' : ($operationType === 'renew' ? 'renew' : 'register');
+                    $price = $result['prices'][$priceKey]['price']['net_price'];
+                    return array(
+                        'is_premium' => true,
+                        'price' => $price
+                    );
+                }
+                return array(
+                    'is_premium' => false,
+                    'price' => null
+                );
+            }
+        }
+        return null;
+    } catch (\Exception $e) {
+        return null;
+    }
+}
+
+/**
  * Register a domain.
  *
  * Attempt to register a domain with the domain registrar.
@@ -170,6 +212,20 @@ function nordname_RegisterDomain($params) {
     $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
     $years = $params['regperiod'];
+    $domainFqdn = $sld . '.' . $tld;
+
+    $premiumDomainsEnabled = (bool) $params['premiumEnabled'];
+    $premiumDomainsCost = $params['premiumCost'];
+    
+    // Check if domain is premium
+    $premiumCheck = nordname_check_premium_domain($domainFqdn, $apiKey, $sandbox, 'register');
+    if ($premiumCheck !== null && $premiumCheck['is_premium']) {
+        if (!$premiumDomainsEnabled) {
+            return array(
+                'error' => 'Premium domains are not enabled. This domain is a premium domain and cannot be registered.',
+            );
+        }
+    }
 
     /**
      * Nameservers.
@@ -260,6 +316,11 @@ function nordname_RegisterDomain($params) {
             'billing' => $params["auxiliary_contact"]
         );
         
+        // Add confirm_premium_price if domain is premium
+        if ($premiumCheck !== null && $premiumCheck['is_premium'] && $premiumDomainsEnabled) {
+            $getfields['confirm_premium_price'] = $premiumDomainsCost;
+        }
+        
         try {
             $reply = $api->call("POST", "domain/register/" . $sld . '.' . $tld, $getfields);
         } catch (\Exception $e) {
@@ -304,6 +365,20 @@ function nordname_TransferDomain($params) {
     $sld = idn_to_ascii($params["original"]["sld"]);
     $tld = $params['tld'];
     $epp = $params['eppcode'];
+    $domainFqdn = $sld . '.' . $tld;
+    
+    $premiumDomainsEnabled = (bool) $params['premiumEnabled'];
+    $premiumDomainsCost = $params['premiumCost'];
+    
+    // Check if domain is premium
+    $premiumCheck = nordname_check_premium_domain($domainFqdn, $apiKey, $sandbox, 'transfer');
+    if ($premiumCheck !== null && $premiumCheck['is_premium']) {
+        if (!$premiumDomainsEnabled) {
+            return array(
+                'error' => 'Premium domains are not enabled. This domain is a premium domain and cannot be transferred.',
+            );
+        }
+    }
 
     // registrant information
     $firstName = $params["firstname"];
@@ -383,6 +458,11 @@ function nordname_TransferDomain($params) {
             'billing' => $params["auxiliary_contact"]
         );
         
+        // Add confirm_premium_price if domain is premium
+        if ($premiumCheck !== null && $premiumCheck['is_premium'] && $premiumDomainsEnabled) {
+            $getfields['confirm_premium_price'] = $premiumDomainsCost;
+        }
+        
         try {
             $reply = $api->call("POST", "domain/transfer/" . $sld . '.' . $tld, $getfields);
         } catch (\Exception $e) {
@@ -429,10 +509,31 @@ function nordname_RenewDomain($params) {
     $years = $params['regperiod'];
 
     $domainFqdn = $sld . '.' . $tld;
+    
+    $premiumDomainsEnabled = (bool) $params['premiumEnabled'];
+    $premiumDomainsCost = $params['premiumCost'];
+    
+    // Check if domain is premium
+    $premiumCheck = nordname_check_premium_domain($domainFqdn, $apiKey, $sandbox, 'renew');
+    if ($premiumCheck !== null && $premiumCheck['is_premium']) {
+        if (!$premiumDomainsEnabled) {
+            return array(
+                'error' => 'Premium domains are not enabled. This domain is a premium domain and cannot be renewed.',
+            );
+        }
+    }
 
     try {
         $api = new ApiClient($apiKey, $sandbox);
-        $api->call("POST", "domain/" . $domainFqdn . "/renew", array('years' => (int) $years));
+        
+        $getfields = array('years' => (int) $years);
+        
+        // Add confirm_premium_price if domain is premium
+        if ($premiumCheck !== null && $premiumCheck['is_premium'] && $premiumDomainsEnabled) {
+            $getfields['confirm_premium_price'] = $premiumDomainsCost;
+        }
+        
+        $api->call("POST", "domain/" . $domainFqdn . "/renew", $getfields);
 
         return array(
             'success' => true,
@@ -674,7 +775,7 @@ function nordname_GetContactDetails($params) {
     try {
         $api = new ApiClient($apiKey, $sandbox);
         $domain = $api->call("GET", "domain/" . $sld . '.' . $tld, array());
-        $registrant = $api->call("GET", "contact/" . $domain["registrant"], $getfields);
+        $registrant = $api->call("GET", "contact/" . $domain["registrant"], array());
         return array(
             'Registrant' => array(
                 'Address 1' => $registrant["address1"],
@@ -1188,6 +1289,7 @@ function nordname_CheckAvailability($params) {
     // Build get data
     $getfields = array(
         'domain' => $searchTerm,
+        'check_price' => "true"
     );
 
     try {
@@ -1202,11 +1304,32 @@ function nordname_CheckAvailability($params) {
                 continue;
             }
             $searchResult = new SearchResult($domainArr[0], $domainArr[1]);
+
+            if (!$premiumEnabled && $result['is_premium']) {
+                $searchResult->setStatus(SearchResult::STATUS_TLD_NOT_SUPPORTED);
+                $results->append($searchResult);
+                continue;
+            }
+
             $status = SearchResult::STATUS_REGISTERED;
-            if (!$result['is_premium']) {
-                $status = $result['avail'] ? SearchResult::STATUS_NOT_REGISTERED : SearchResult::STATUS_REGISTERED;
+            if ($result['avail']) {
+                $status = SearchResult::STATUS_NOT_REGISTERED;
+            } else {
+                $status = SearchResult::STATUS_REGISTERED;
             }
             $searchResult->setStatus($status);
+
+            if ($result['is_premium']) {
+                $searchResult->setPremiumDomain(true);
+                $searchResult->setPremiumCostPricing(
+                    array(
+                        'register' => $result['prices']['register']["price"]['net_price'],
+                        'transfer' => $result['prices']['transfer']["price"]['net_price'],
+                        'renew' => $result['prices']['renew']["price"]['net_price'],
+                        'CurrencyCode' => 'EUR'
+                    )
+                );
+            }
             $results->append($searchResult);
         }
 
