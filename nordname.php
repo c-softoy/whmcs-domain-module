@@ -76,6 +76,23 @@ function nordname_getConfigArray() {
             'Default' => '',
             'Description' => 'Enter the contact which is to be used as the admin/tech/billing contact on new orders.',
         ),
+        'registrant_contact_language' => array(
+            'Type' => 'dropdown',
+            'FriendlyName' => 'Registrant contact language',
+            'Options' => array(
+                'en' => 'English',
+                'fi' => 'Finnish',
+                'sv' => 'Swedish',
+                'profile' => 'Language of WHMCS user profile',
+            ),
+            'Default' => 'en',
+            'Description' => 'Language set on registrant contacts. NordName sends email communication to the registrant in this language. Affects only new orders - to change language on existing domains see below option.',
+        ),
+        'reset_registrant_contact_languages' => array(
+            'Type' => 'yesno',
+            'FriendlyName' => 'Reset registrant contact languages',
+            'Description' => 'Check and save to reset the language on registrant contacts for all Active NordName domains to match the Registrant contact language setting above. This box is cleared automatically after save.',
+        ),
         'auto_renew' => array(
             'Type' => 'yesno',
             'FriendlyName' => 'Auto Renew',
@@ -142,6 +159,29 @@ function nordname_config_validate($params) {
         }
     } catch (\Exception $e) {
         throw new InvalidConfiguration('Auxiliary Admin/Tech/Billing contact is invalid.');
+    }
+
+    if (!empty($params['reset_registrant_contact_languages']) && $params['reset_registrant_contact_languages'] === 'on') {
+        $result = nordname_reset_registrant_languages($params);
+        $message = 'NordName registrant language reset complete: '
+            . $result['updated'] . ' updated, '
+            . $result['skipped'] . ' skipped';
+
+        if (!empty($result['failed'])) {
+            $message .= ', ' . count($result['failed']) . ' failed';
+            foreach ($result['failed'] as $domain => $error) {
+                logActivity('NordName registrant language reset failed for ' . $domain . ': ' . $error);
+            }
+        }
+
+        logActivity($message);
+
+        register_shutdown_function(function () {
+            Capsule::table('tblregistrars')
+                ->where('registrar', 'nordname')
+                ->where('setting', 'reset_registrant_contact_languages')
+                ->update(array('value' => ''));
+        });
     }
 }
 
@@ -236,74 +276,33 @@ function nordname_RegisterDomain($params) {
      */
     $nameservers = array($params['ns1'], $params['ns2'], $params['ns3'], $params['ns4'], $params['ns5']);
 
-    // registrant information
-    $firstName = $params["firstname"];
-    $lastName = $params["lastname"];
-    $fullName = $params["fullname"]; // First name and last name combined
-    $company = $params["companyname"];
-    $email = $params["email"];
-    $address1 = $params["address1"];
-    $address2 = $params["address2"];
-    $city = $params["city"];
-    $state = $params["state"]; // eg. TX
-    $stateFullName = $params["fullstate"]; // eg. Texas
-    $postcode = $params["postcode"]; // Postcode/Zip code
-    $countryCode = $params["countrycode"]; // eg. GB
-    $countryName = $params["countryname"]; // eg. United Kingdom
-    $phoneNumber = $params["phonenumber"]; // Phone number as the user provided it
-    $phoneCountryCode = $params["phonecc"]; // Country code determined based on country
-    $phoneNumberFormatted = $params["fullphonenumber"]; // Format: +CC.xxxxxxxxxxxx
-    
-    $body = array(
-        'first_name' => $firstName,
-        'last_name' => $lastName,
-        'address1' => $address1,
-        'city' => $city,
-        'area' => $state,
-        'zip_code' => $postcode,
-        'country' => $countryCode,
-        'email' => $email,
-        'phone' => $phoneNumberFormatted,
-        "is_registrant" => true,
-        "language" => "en",
-        "additional" => new ArrayObject()
+    $standardFields = array(
+        'first_name' => $params['firstname'],
+        'last_name' => $params['lastname'],
+        'address1' => $params['address1'],
+        'city' => $params['city'],
+        'area' => $params['state'],
+        'zip_code' => $params['postcode'],
+        'country' => $params['countrycode'],
+        'email' => $params['email'],
+        'phone' => $params['fullphonenumber'],
     );
-    
-    // Add optional fields if they are present.
-    if (!empty($company))
-      $body["company"] = $company;
-  
-    if (!empty($address2))
-      $body["address2"] = $address2;
-      
-    // Add extra fields if required by TLD and if present.
-    $tld_fields = nordname_get_tld_data($tld, $params)["additional_contact_fields"];
-    foreach ($tld_fields as $fields) {
-        // First check if condition fields are present and add them.
-        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
-            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
-        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
-            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
-            
-        // Then same to conditional fields.
-        $required_fields = $fields["required_fields"];
-        foreach ($required_fields as $field) {
-            if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field])) {
-                $field_metadata = nordname_additional_fields_bank($field);
-                if ($field_metadata["IsStandard"]) {
-                    $body[$field] = $params["additionalfields"][$field];
-                } else {
-                    $body["additional"][$field] = array("domain" => $sld . '.' . $tld, "value" => $params["additionalfields"][$field]);
-                }
-            }
-        }
+    if (!empty($params['companyname'])) {
+        $standardFields['company'] = $params['companyname'];
     }
-    
+    if (!empty($params['address2'])) {
+        $standardFields['address2'] = $params['address2'];
+    }
+
+    $body = nordname_build_registrant_contact_body($params, $standardFields, array(
+        'tld' => $tld,
+        'domain_fqdn' => $domainFqdn,
+        'additional_field_values' => $params['additionalfields'],
+    ));
+
     try {
         $api = new ApiClient($apiKey, $sandbox);
-        // Create the contact.
-        $reply = $api->call("POST", "contact", array(), $body);
-        $registrant = $reply["contact"];
+        $registrant = nordname_create_registrant_contact($api, $body);
     
         // Build post data
         $getfields = array(
@@ -380,74 +379,33 @@ function nordname_TransferDomain($params) {
         }
     }
 
-    // registrant information
-    $firstName = $params["firstname"];
-    $lastName = $params["lastname"];
-    $fullName = $params["fullname"]; // First name and last name combined
-    $company = $params["companyname"];
-    $email = $params["email"];
-    $address1 = $params["address1"];
-    $address2 = $params["address2"];
-    $city = $params["city"];
-    $state = $params["state"]; // eg. TX
-    $stateFullName = $params["fullstate"]; // eg. Texas
-    $postcode = $params["postcode"]; // Postcode/Zip code
-    $countryCode = $params["countrycode"]; // eg. GB
-    $countryName = $params["countryname"]; // eg. United Kingdom
-    $phoneNumber = $params["phonenumber"]; // Phone number as the user provided it
-    $phoneCountryCode = $params["phonecc"]; // Country code determined based on country
-    $phoneNumberFormatted = $params["fullphonenumber"]; // Format: +CC.xxxxxxxxxxxx
-    
-    $body = array(
-        'first_name' => $firstName,
-        'last_name' => $lastName,
-        'address1' => $address1,
-        'city' => $city,
-        'area' => $stateFullName,
-        'zip_code' => $postcode,
-        'country' => $countryCode,
-        'email' => $email,
-        'phone' => $phoneNumberFormatted,
-        "is_registrant" => true,
-        "language" => "en"
+    $standardFields = array(
+        'first_name' => $params['firstname'],
+        'last_name' => $params['lastname'],
+        'address1' => $params['address1'],
+        'city' => $params['city'],
+        'area' => $params['state'],
+        'zip_code' => $params['postcode'],
+        'country' => $params['countrycode'],
+        'email' => $params['email'],
+        'phone' => $params['fullphonenumber'],
     );
-    
-    // Add optional fields if they are present.
-    if (!empty($company))
-      $body["company"] = $company;
-  
-    if (!empty($address2))
-      $body["address2"] = $address2;
-      
-    // Add extra fields if required by TLD and if present.
-    $tld_fields = nordname_get_tld_data($tld, $params)["additional_contact_fields"];
-    foreach ($tld_fields as $fields) {
-        // First check if condition fields are present and add them.
-        if (array_key_exists($fields["field_name1"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name1"]]))
-            $body[$fields["field_name1"]] = $params["additionalfields"][$fields["field_name1"]];
-        if (array_key_exists($fields["field_name2"], $params["additionalfields"]) && !empty($params["additionalfields"][$fields["field_name2"]]))
-            $body[$fields["field_name2"]] = $params["additionalfields"][$fields["field_name2"]];
-            
-        // Then same to conditional fields.
-        $required_fields = $fields["required_fields"];
-        foreach ($required_fields as $field) {
-            if (array_key_exists($field, $params["additionalfields"]) && !empty($params["additionalfields"][$field])) {
-                $field_metadata = nordname_additional_fields_bank($field);
-                if ($field_metadata["IsStandard"]) {
-                    $body[$field] = $params["additionalfields"][$field];
-                } else {
-                    $body["additional"][$field] = array("domain" => $sld . '.' . $tld, "value" => $params["additionalfields"][$field]);
-                }
-            }
-        }
+    if (!empty($params['companyname'])) {
+        $standardFields['company'] = $params['companyname'];
     }
+    if (!empty($params['address2'])) {
+        $standardFields['address2'] = $params['address2'];
+    }
+
+    $body = nordname_build_registrant_contact_body($params, $standardFields, array(
+        'tld' => $tld,
+        'domain_fqdn' => $domainFqdn,
+        'additional_field_values' => $params['additionalfields'],
+    ));
 
     try {
         $api = new ApiClient($apiKey, $sandbox);
-        // Create the contact.
-        $reply = $api->call("POST", "contact", array(), $body);
-        
-        $registrant = $reply["contact"];
+        $registrant = nordname_create_registrant_contact($api, $body);
         // Build post data
         $getfields = array(
             'auth_code' => $epp,
@@ -1041,7 +999,7 @@ function nordname_process_trade($params) {
     $tld = $params['tld'];
 
     // Validate required fields
-    $required_fields = array('first_name', 'last_name', 'address1', 'city', 'zip_code', 'country', 'email', 'phone', 'language');
+    $required_fields = array('first_name', 'last_name', 'address1', 'city', 'zip_code', 'country', 'email', 'phone');
     $missing_fields = array();
     
     foreach ($required_fields as $field) {
@@ -1069,8 +1027,7 @@ function nordname_process_trade($params) {
     $countryCallingCode = $_POST["country-calling-code-phone"];
     $phoneNumberFormatted = "+{$countryCallingCode}.{$phone}";
 
-    // Build contact data
-    $contact_data = array(
+    $standardFields = array(
         'first_name' => $_POST['first_name'],
         'last_name' => $_POST['last_name'],
         'address1' => $_POST['address1'],
@@ -1079,50 +1036,41 @@ function nordname_process_trade($params) {
         'country' => $_POST['country'],
         'email' => $_POST['email'],
         'phone' => $phoneNumberFormatted,
-        'language' => $_POST['language'],
         'registrant_type' => $_POST['registrant_type'],
-        'is_registrant' => true,
     );
-
-    // Add optional fields
     if (!empty($_POST['company'])) {
-        $contact_data['company'] = $_POST['company'];
+        $standardFields['company'] = $_POST['company'];
     }
     if (!empty($_POST['address2'])) {
-        $contact_data['address2'] = $_POST['address2'];
+        $standardFields['address2'] = $_POST['address2'];
     }
     if (!empty($_POST['area'])) {
-        $contact_data['area'] = $_POST['area'];
+        $standardFields['area'] = $_POST['area'];
     }
 
-    // Add additional fields based on TLD requirements
-    try {
-        $additional_fields_result = nordname_AdditionalDomainFields($params);
-        if (isset($additional_fields_result['fields'])) {
-            foreach ($additional_fields_result['fields'] as $field) {
-                $field_name = $field['Name'];
-                if (!empty($_POST[$field_name])) {
-                    $contact_data[$field_name] = $_POST[$field_name];
-                }
-            }
-        }
-    } catch (Exception $e) {
-        // Continue without additional fields if there's an error
-    }
+    $domainFqdn = $sld . '.' . $tld;
+    $contact_data = nordname_build_registrant_contact_body($params, $standardFields, array(
+        'tld' => $tld,
+        'domain_fqdn' => $domainFqdn,
+        'additional_field_values' => $_POST,
+        'userid' => $params['userid'],
+    ));
 
     try {
         $api = new ApiClient($apiKey, $sandbox);
-        
-        // Validate contact data
-        $contact_response = $api->call("POST", "contact", array("validate_for_tld" => $tld, "validate_for_type" => "registrant"), $contact_data);
-        
-        if (!isset($contact_response['contact'])) {
-            throw new Exception('Failed to create contact: ' . json_encode($contact_response));
+
+        $validate_response = $api->call(
+            "POST",
+            "contact",
+            array("validate_for_tld" => $tld, "validate_for_type" => "registrant"),
+            $contact_data
+        );
+
+        if (!isset($validate_response['contact'])) {
+            throw new Exception('Failed to create contact: ' . json_encode($validate_response));
         }
-        // If successful, create it for real.
-        $contact_response = $api->call("POST", "contact", array(), $contact_data);
-        
-        $new_registrant_id = $contact_response['contact'];
+
+        $new_registrant_id = nordname_create_registrant_contact($api, $contact_data);
         
         // Initiate domain trade
         $trade_data = array(
@@ -1705,6 +1653,163 @@ function nordname_redact_additional_fields($params) {
                 ->whereNotIn('name', $fields_to_not_redact)
                 ->update(['value' => "REDACTED"]);
     }
+}
+
+function nordname_map_whmcs_language_to_contact_language($whmcsLanguage) {
+    $language = strtolower(trim((string) $whmcsLanguage));
+    $map = array(
+        'english' => 'en',
+        'en' => 'en',
+        'finnish' => 'fi',
+        'fi' => 'fi',
+        'swedish' => 'sv',
+        'sv' => 'sv',
+    );
+
+    return isset($map[$language]) ? $map[$language] : 'en';
+}
+
+function nordname_resolve_registrant_contact_language(array $params, $userid = null) {
+    $setting = isset($params['registrant_contact_language']) ? $params['registrant_contact_language'] : 'en';
+
+    if (in_array($setting, array('en', 'fi', 'sv'), true)) {
+        return $setting;
+    }
+
+    if ($setting === 'profile') {
+        if ($userid === null && !empty($params['userid'])) {
+            $userid = $params['userid'];
+        }
+        if ($userid) {
+            $clientLanguage = Capsule::table('tblclients')->where('id', $userid)->value('language');
+            return nordname_map_whmcs_language_to_contact_language($clientLanguage);
+        }
+    }
+
+    return 'en';
+}
+
+function nordname_build_registrant_contact_body(array $params, array $standardFields, array $options = array()) {
+    $tld = $options['tld'];
+    $domainFqdn = isset($options['domain_fqdn']) ? $options['domain_fqdn'] : '';
+    $additionalFieldValues = isset($options['additional_field_values']) ? $options['additional_field_values'] : array();
+    if (empty($additionalFieldValues) && !empty($params['additionalfields'])) {
+        $additionalFieldValues = $params['additionalfields'];
+    }
+    $userid = isset($options['userid']) ? $options['userid'] : null;
+
+    $body = $standardFields;
+    $body['is_registrant'] = true;
+    $body['language'] = nordname_resolve_registrant_contact_language($params, $userid);
+    $body['additional'] = new ArrayObject();
+
+    $tld_fields = nordname_get_tld_data($tld, $params)["additional_contact_fields"];
+    foreach ($tld_fields as $fields) {
+        if (array_key_exists($fields["field_name1"], $additionalFieldValues) && !empty($additionalFieldValues[$fields["field_name1"]])) {
+            $body[$fields["field_name1"]] = $additionalFieldValues[$fields["field_name1"]];
+        }
+        if (array_key_exists($fields["field_name2"], $additionalFieldValues) && !empty($additionalFieldValues[$fields["field_name2"]])) {
+            $body[$fields["field_name2"]] = $additionalFieldValues[$fields["field_name2"]];
+        }
+
+        $required_fields = $fields["required_fields"];
+        foreach ($required_fields as $field) {
+            if (array_key_exists($field, $additionalFieldValues) && !empty($additionalFieldValues[$field])) {
+                $field_metadata = nordname_additional_fields_bank($field);
+                if ($field_metadata["IsStandard"]) {
+                    $body[$field] = $additionalFieldValues[$field];
+                } else {
+                    $body["additional"][$field] = array("domain" => $domainFqdn, "value" => $additionalFieldValues[$field]);
+                }
+            }
+        }
+    }
+
+    return $body;
+}
+
+function nordname_create_registrant_contact(ApiClient $api, array $body, array $queryParams = array()) {
+    $reply = $api->call("POST", "contact", $queryParams, $body);
+    return $reply["contact"];
+}
+
+function nordname_build_contact_update_body_from_api(array $contact, $language) {
+    $body = array(
+        'first_name' => $contact['first_name'],
+        'last_name' => $contact['last_name'],
+        'address1' => $contact['address1'],
+        'city' => $contact['city'],
+        'area' => isset($contact['area']) ? $contact['area'] : '',
+        'zip_code' => $contact['zip_code'],
+        'country' => $contact['country'],
+        'email' => $contact['email'],
+        'phone' => $contact['phone'],
+        'is_registrant' => true,
+        'language' => $language,
+    );
+
+    if (!empty($contact['company'])) {
+        $body['company'] = $contact['company'];
+    }
+    if (!empty($contact['address2'])) {
+        $body['address2'] = $contact['address2'];
+    }
+    if (!empty($contact['registrant_type'])) {
+        $body['registrant_type'] = $contact['registrant_type'];
+    }
+
+    return $body;
+}
+
+/**
+ * Reset registrant contact language for all Active NordName domains.
+ *
+ * Runs synchronously; large domain counts may take considerable time.
+ *
+ * @return array{updated: int, skipped: int, failed: array<string, string>}
+ */
+function nordname_reset_registrant_languages(array $params = null) {
+    $settings = $params ?: nordname_get_module_settings();
+    $apiKey = $settings['api_key'];
+    $sandbox = ($settings['sandbox'] == "on") ? true : false;
+    $api = new ApiClient($apiKey, $sandbox);
+
+    $result = array(
+        'updated' => 0,
+        'skipped' => 0,
+        'failed' => array(),
+    );
+
+    $domains = Capsule::table('tbldomains')
+        ->where('registrar', 'nordname')
+        ->where('status', 'Active')
+        ->get(array('domain', 'userid'));
+
+    foreach ($domains as $domain) {
+        try {
+            $domainInfo = $api->call("GET", "domain/" . $domain->domain, array());
+            if (empty($domainInfo['registrant'])) {
+                $result['failed'][$domain->domain] = 'Registrant contact not found';
+                continue;
+            }
+
+            $contact = $api->call("GET", "contact/" . $domainInfo['registrant'], array());
+            $targetLanguage = nordname_resolve_registrant_contact_language($settings, $domain->userid);
+
+            if (isset($contact['language']) && $contact['language'] === $targetLanguage) {
+                $result['skipped']++;
+                continue;
+            }
+
+            $body = nordname_build_contact_update_body_from_api($contact, $targetLanguage);
+            $api->call("POST", "contact/" . $domainInfo['registrant'], array(), $body);
+            $result['updated']++;
+        } catch (\Exception $e) {
+            $result['failed'][$domain->domain] = $e->getMessage();
+        }
+    }
+
+    return $result;
 }
 
 function nordname_get_module_settings() {
