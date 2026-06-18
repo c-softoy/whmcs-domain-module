@@ -507,17 +507,6 @@
                         <input type="tel" class="form-control" id="phone" name="phone" value="{if isset($form_data.phone)}{$form_data.phone}{/if}" required>
                     </div>
 
-                    <div class="form-group">
-                        <label for="language" class="control-label">{$LANG.nordname_trade_language} <span class="text-danger">*</span></label>
-                        <select class="form-control" id="language" name="language" required>
-                            <option value="">{$LANG.nordname_trade_select_language}</option>
-                            <option value="en"{if isset($form_data.language) && $form_data.language == 'en'} selected{/if}>{$LANG.nordname_trade_english}</option>
-                            <option value="fi"{if isset($form_data.language) && $form_data.language == 'fi'} selected{/if}>{$LANG.nordname_trade_finnish}</option>
-                            <option value="sv"{if isset($form_data.language) && $form_data.language == 'sv'} selected{/if}>{$LANG.nordname_trade_swedish}</option>
-                        </select>
-                        <span class="help-block">{$LANG.nordname_trade_language_help}</span>
-                    </div>
-
                     {* Additional fields based on TLD requirements *}
                     {if isset($additional_fields) && $additional_fields}
                         <h4>{$LANG.nordname_trade_additional_requirements|sprintf:$tld}</h4>
